@@ -2,12 +2,11 @@
 (function () {
   'use strict';
 
-  var VERSION = '0.7.1';
+  var VERSION = '0.7.2';
   var API = 'https://uakino.ax';
   var TIMEOUT = 20000;
 
-  if (window.LampaUASearch071) return;
-  window.LampaUASearch071 = true;
+  if (window.LampaUASearch072) return;
 
   var categories = [
     ['new', 'Новинки'],
@@ -103,9 +102,6 @@
   var filters = {};
   var cache = {};
   var currentMovie = null;
-  var menuStack = [];
-  var playerActive = false;
-  var launching = false;
 
   function clone(v) {
     return JSON.parse(JSON.stringify(v));
@@ -135,7 +131,6 @@
 
   function readFilters() {
     filters = clone(defaults);
-
     var x = load('ua_search_filters_07', {});
 
     if (x && typeof x === 'object') {
@@ -172,7 +167,6 @@
         if (done) return;
         done = true;
         clearTimeout(timer);
-
         if (err) reject(err);
         else resolve(val);
       }
@@ -182,10 +176,7 @@
         xhr.timeout = TIMEOUT;
 
         timer = setTimeout(function () {
-          try {
-            xhr.abort();
-          } catch (e) {}
-
+          try { xhr.abort(); } catch (e) {}
           end(new Error('Таймаут 20 секунд'));
         }, TIMEOUT);
 
@@ -240,44 +231,29 @@
         return list[i][1];
       }
     }
-
     return String(v);
   }
 
-  /*
-   * FIX 0.7.1
-   *
-   * Do not force Controller.toggle('full_start').
-   * Let Lampa.Select restore its own controller.
-   */
+  // No custom controller switching or menu stack.
   function menu(title, items, onSelect, onBack) {
-    menuStack.push({ title: title });
-
-    var closed = false;
-
-    function pop() {
-      if (closed) return;
-      closed = true;
-      menuStack.pop();
-    }
-
     try {
       Lampa.Select.show({
         title: title,
         items: items,
-
         onSelect: function (it) {
-          pop();
-          onSelect(it);
+          try {
+            onSelect(it);
+          } catch (e) {
+            note('Меню: ' + e.message);
+          }
         },
-
         onBack: function () {
-          pop();
-          if (onBack) onBack();
+          if (typeof onBack === 'function') {
+            onBack();
+          }
         }
       });
     } catch (e) {
-      pop();
       note('Меню: ' + e.message);
     }
   }
@@ -285,7 +261,6 @@
   function choose(title, arr, value, cb) {
     menu(
       title,
-
       arr.map(function (a) {
         return {
           title: a[1],
@@ -293,13 +268,11 @@
           selected: String(a[0]) === String(value)
         };
       }),
-
       function (it) {
         cb(it.value);
         save();
         showFilters();
       },
-
       showFilters
     );
   }
@@ -314,7 +287,6 @@
     ) {
       a.push([y, String(y)]);
     }
-
     return a;
   }
 
@@ -382,66 +354,54 @@
       }
     ];
 
-    menu(
-      'UA Search 0.7.1 · Фільтри',
-      items,
+    menu('UA Search 0.7.2 · Фільтри', items, function (it) {
+      if (it.action === 'apply') return showCatalog();
 
-      function (it) {
-        if (it.action === 'apply') {
-          return showCatalog();
-        }
+      if (it.action === 'reset') {
+        filters = clone(defaults);
+        save();
+        return showFilters();
+      }
 
-        if (it.action === 'reset') {
-          filters = clone(defaults);
-          save();
-          return showFilters();
-        }
+      var k = it.key;
 
-        var k = it.key;
+      var opts = {
+        genre: genres,
+        type: types,
+        quality: qualities,
+        sort: sorts,
+        country: countries,
+        category: categories,
+        yearFrom: years(),
+        yearTo: years(),
+        rating: [
+          [0, 'Будь-який'],
+          [5, '5+'],
+          [6, '6+'],
+          [7, '7+'],
+          [7.5, '7.5+'],
+          [8, '8+'],
+          [8.5, '8.5+'],
+          [9, '9+']
+        ],
+        pages: [
+          [1, '30 записів'],
+          [2, '60 записів'],
+          [3, '90 записів'],
+          [5, '150 записів']
+        ]
+      };
 
-        var opts = {
-          genre: genres,
-          type: types,
-          quality: qualities,
-          sort: sorts,
-          country: countries,
-          category: categories,
-          yearFrom: years(),
-          yearTo: years(),
-
-          rating: [
-            [0, 'Будь-який'],
-            [5, '5+'],
-            [6, '6+'],
-            [7, '7+'],
-            [7.5, '7.5+'],
-            [8, '8+'],
-            [8.5, '8.5+'],
-            [9, '9+']
-          ],
-
-          pages: [
-            [1, '30 записів'],
-            [2, '60 записів'],
-            [3, '90 записів'],
-            [5, '150 записів']
-          ]
-        };
-
-        if (opts[k]) {
-          choose(it.title, opts[k], f[k], function (v) {
-            filters[k] = v;
-          });
-        }
-      },
-
-      showMain
-    );
+      if (opts[k]) {
+        choose(it.title, opts[k], f[k], function (v) {
+          filters[k] = v;
+        });
+      }
+    }, showMain);
   }
 
   function normalize(it) {
     var x = clone(it);
-
     x.title = x.title || x.name || '';
 
     x.year = parseInt(
@@ -450,26 +410,18 @@
     ) || 0;
 
     var r = x.rating;
-
     if (r === undefined || r === null) {
       r = x.vote_average;
     }
 
-    x._rating =
-      r === undefined || r === null || r === ''
-        ? null
-        : Number(r);
+    x._rating = r === undefined ||
+      r === null || r === '' ? null : Number(r);
 
     if (!isFinite(x._rating)) x._rating = null;
 
     x._genres = x.genre_ids || x.genres || [];
-
-    x._countries =
-      x.production_countries ||
-      x.origin_country ||
-      x.countries ||
-      [];
-
+    x._countries = x.production_countries ||
+      x.origin_country || x.countries || [];
     x._quality = x.quality || x.video_quality || '';
 
     return x;
@@ -506,16 +458,13 @@
 
   function qualityOK(x, v) {
     if (!v) return true;
-
     var s = String(x._quality).toLowerCase();
 
     if (v === '2160') return /2160|4k|uhd/.test(s);
     if (v === '1080') return /1080|fhd|full.?hd/.test(s);
-
     if (v === '720') {
       return /720|(^|[^a-z])hd([^a-z]|$)/.test(s);
     }
-
     return false;
   }
 
@@ -548,15 +497,12 @@
       return (
         (!f.yearFrom ||
           (x.year && x.year >= f.yearFrom)) &&
-
         (!f.yearTo ||
           (x.year && x.year <= f.yearTo)) &&
-
         typeOK(x, f.type, cat) &&
         genreOK(x, f.genre) &&
         countryOK(x, f.country) &&
         qualityOK(x, f.quality) &&
-
         (!f.rating ||
           (x._rating !== null &&
             x._rating >= f.rating))
@@ -568,17 +514,13 @@
     if (s !== 'default') {
       out.sort(function (a, b) {
         if (s === 'rating_desc') {
-          return (
-            (b._rating === null ? -1 : b._rating) -
-            (a._rating === null ? -1 : a._rating)
-          );
+          return (b._rating === null ? -1 : b._rating) -
+            (a._rating === null ? -1 : a._rating);
         }
 
         if (s === 'rating_asc') {
-          return (
-            (a._rating === null ? 99 : a._rating) -
-            (b._rating === null ? 99 : b._rating)
-          );
+          return (a._rating === null ? 99 : a._rating) -
+            (b._rating === null ? 99 : b._rating);
         }
 
         if (s === 'year_desc') return b.year - a.year;
@@ -607,14 +549,11 @@
       return Promise.resolve(c.data);
     }
 
-    return get(
-      '/hls/api/lampa/list?' +
-      qs({
-        cat: cat,
-        page: page,
-        limit: 30
-      })
-    ).then(function (d) {
+    return get('/hls/api/lampa/list?' + qs({
+      cat: cat,
+      page: page,
+      limit: 30
+    })).then(function (d) {
       if (!d || !Array.isArray(d.results)) {
         throw new Error('Невідомий формат каталогу');
       }
@@ -630,12 +569,9 @@
 
   function showCatalog() {
     var cat = filters.type || filters.category;
-
     var max = Math.min(
-      5,
-      Math.max(1, Number(filters.pages) || 3)
+      5, Math.max(1, Number(filters.pages) || 3)
     );
-
     var all = [];
 
     busy(true);
@@ -648,8 +584,7 @@
 
         if (d.total_pages) {
           max = Math.min(
-            max,
-            Number(d.total_pages) || max
+            max, Number(d.total_pages) || max
           );
         }
 
@@ -664,13 +599,11 @@
 
       a = a.filter(function (x) {
         var id = String(
-          x.uakino_id ||
-          x.id ||
+          x.uakino_id || x.id ||
           (x.title + ':' + x.year)
         );
 
         if (seen[id]) return false;
-
         seen[id] = true;
         return true;
       });
@@ -687,14 +620,10 @@
         var meta = [];
 
         if (x.year) meta.push(String(x.year));
-
         if (x._rating !== null) {
           meta.push('★ ' + x._rating.toFixed(1));
         }
-
-        if (x._quality) {
-          meta.push(String(x._quality));
-        }
+        if (x._quality) meta.push(String(x._quality));
 
         rows.push({
           title: x.title,
@@ -713,17 +642,13 @@
       menu(
         'UAKino · ' + found.length + ' результатів',
         rows,
-
         function (it) {
           if (it.action === 'filters') {
             return showFilters();
           }
 
-          if (it.movie) {
-            openCatalogMovie(it.movie);
-          }
+          if (it.movie) openCatalogMovie(it.movie);
         },
-
         showFilters
       );
     }).catch(function (e) {
@@ -733,47 +658,35 @@
   }
 
   function openCatalogMovie(x) {
-    var movie = {
+    searchMovie({
       id: x.id,
       title: x.title,
       name: x.is_series ? x.title : undefined,
       original_title: x.original || x.original_title,
       original_name: x.original || x.original_name,
-
       release_date: x.year
-        ? String(x.year) + '-01-01'
-        : '',
-
+        ? String(x.year) + '-01-01' : '',
       first_air_date: x.is_series && x.year
-        ? String(x.year) + '-01-01'
-        : ''
-    };
-
-    searchMovie(movie);
+        ? String(x.year) + '-01-01' : ''
+    });
   }
 
   function findMovie(m) {
     var tv = !!(
-      m.name ||
-      m.first_air_date ||
+      m.name || m.first_air_date ||
       m.number_of_seasons
     );
 
-    return get(
-      '/hls/api/lampa/find?' +
-      qs({
-        tmdb: m.id,
-        imdb: m.imdb_id,
-        type: tv ? 'tv' : 'movie',
-
-        year: String(
-          m.release_date || m.first_air_date || ''
-        ).slice(0, 4),
-
-        title: m.title || m.name || '',
-        orig: m.original_title || m.original_name || ''
-      })
-    ).then(function (d) {
+    return get('/hls/api/lampa/find?' + qs({
+      tmdb: m.id,
+      imdb: m.imdb_id,
+      type: tv ? 'tv' : 'movie',
+      year: String(
+        m.release_date || m.first_air_date || ''
+      ).slice(0, 4),
+      title: m.title || m.name || '',
+      orig: m.original_title || m.original_name || ''
+    })).then(function (d) {
       return {
         found: !!(d && d.found && d.movie_id),
         title: d.title || m.title || m.name,
@@ -789,7 +702,6 @@
       s = 'ua' +
         Math.random().toString(36).slice(2) +
         Date.now().toString(36);
-
       store('ua_search_sid_07', s);
     }
 
@@ -799,36 +711,26 @@
   function playInfo(id, o) {
     o = o || {};
 
-    return get(
-      '/hls/api/play?' +
-      qs({
-        movie: id,
-        s: sid(),
-        hevc: 0,
-        voice: o.voice,
-        season: o.season,
-        episode: o.episode,
-        q: o.q
-      })
-    );
+    return get('/hls/api/play?' + qs({
+      movie: id,
+      s: sid(),
+      hevc: 0,
+      voice: o.voice,
+      season: o.season,
+      episode: o.episode,
+      q: o.q
+    }));
   }
 
   function absolute(u) {
     if (!u) return '';
-
     if (/^https?:\/\//i.test(u)) return u;
-
-    if (u.slice(0, 2) === '//') {
-      return 'https:' + u;
-    }
-
+    if (u.slice(0, 2) === '//') return 'https:' + u;
     return API + (u.charAt(0) === '/' ? '' : '/') + u;
   }
 
   function manifest(p) {
-    var u = absolute(
-      p.manifest || p.manifest_abs || ''
-    );
+    var u = absolute(p.manifest || p.manifest_abs || '');
 
     if (u && !/\.m3u8($|\?)/i.test(u)) {
       u += '.m3u8';
@@ -848,26 +750,19 @@
       for (var i = 0; i < a.length; i++) {
         if (
           a[i].indexOf('#EXT-X-STREAM-INF') !== 0
-        ) {
-          continue;
-        }
+        ) continue;
 
         var m = /RESOLUTION=\d+x(\d+)/.exec(a[i]);
         var u = (a[i + 1] || '').trim();
 
-        if (!m || !u || u.charAt(0) === '#') {
-          continue;
-        }
+        if (!m || !u || u.charAt(0) === '#') continue;
 
         var h = Number(m[1]);
-
-        var tier =
-          h >= 1500 ? 2160 :
+        var tier = h >= 1500 ? 2160 :
           h >= 1000 ? 1080 :
           h >= 680 ? 720 : 480;
 
         if (seen[tier]) continue;
-
         seen[tier] = true;
 
         var resolved;
@@ -890,11 +785,7 @@
     });
   }
 
-  /*
-   * FIX: Direct player launch.
-   * No "uakino" property in the player item.
-   * No forced controller switching.
-   */
+  // Direct playback, without the "uakino" property.
   function playVideo(p, title, selected, vars) {
     var master = manifest(p);
 
@@ -919,14 +810,9 @@
       hls_type: 'hlsjs'
     };
 
-    if (vars.length > 1) {
-      item.quality = quality;
-    }
+    if (vars.length > 1) item.quality = quality;
 
-    if (
-      Array.isArray(p.subs) &&
-      p.subs.length
-    ) {
+    if (Array.isArray(p.subs) && p.subs.length) {
       item.subtitles = p.subs.map(function (s) {
         return {
           label: s.label,
@@ -936,24 +822,15 @@
     }
 
     try {
-      launching = true;
-      playerActive = true;
-
       Lampa.Player.play(item);
       Lampa.Player.playlist([item]);
     } catch (e) {
-      playerActive = false;
       note('Плеєр: ' + e.message);
-    } finally {
-      launching = false;
     }
   }
 
   function qualityMenu(ctx) {
-    var rows = [{
-      title: 'Авто',
-      tier: 0
-    }];
+    var rows = [{ title: 'Авто', tier: 0 }];
 
     ctx.vars.forEach(function (v) {
       rows.push({
@@ -981,7 +858,6 @@
     menu(
       'Якість · ' + ctx.title,
       rows,
-
       function (it) {
         if (it.action === 'voice') {
           return voiceMenu(ctx);
@@ -992,12 +868,347 @@
         }
 
         playVideo(
-          ctx.p,
-          ctx.title,
-          it.tier,
-          ctx.vars
+          ctx.p, ctx.title, it.tier, ctx.vars
         );
-      },
+      }
+    );
+  }
 
+  function voiceMenu(ctx) {
+    menu(
+      'Озвучка',
+      ctx.p.voices.map(function (v) {
+        return {
+          title: String(v),
+          voice: v
+        };
+      }),
+      function (it) {
+        busy(true);
+
+        playInfo(ctx.id, {
+          voice: it.voice
+        }).then(function (p) {
+          return variants(manifest(p)).then(function (v) {
+            busy(false);
+            ctx.p = p;
+            ctx.vars = v;
+            ctx.voice = it.voice;
+            qualityMenu(ctx);
+          });
+        }).catch(function (e) {
+          busy(false);
+          note(e.message);
+        });
+      },
       function () {
-        // Lampa.Select
+        qualityMenu(ctx);
+      }
+    );
+  }
+
+  function episodes(ctx) {
+    var eps = ctx.p.episodes || [];
+
+    if (!eps.length) {
+      return note('Список серій недоступний');
+    }
+
+    menu(
+      'Серії · ' + ctx.title,
+      eps.map(function (e) {
+        return {
+          title: 'Сезон ' + e.season +
+            ' · Серія ' + e.episode,
+          episode: e
+        };
+      }),
+      function (it) {
+        var e = it.episode;
+        busy(true);
+
+        playInfo(ctx.id, {
+          voice: e.voice,
+          season: e.season,
+          episode: e.episode
+        }).then(function (p) {
+          busy(false);
+
+          playVideo(
+            p,
+            ctx.title + ' · S' +
+              e.season + 'E' + e.episode,
+            0,
+            []
+          );
+        }).catch(function (err) {
+          busy(false);
+          note(err.message);
+        });
+      }
+    );
+  }
+
+  function official() {
+    var b = document.querySelector(
+      '.view--uakino:not(.view--ua-search)'
+    );
+
+    if (!b) {
+      return note('Офіційна кнопка UAKino недоступна');
+    }
+
+    try {
+      $(b).trigger('hover:enter');
+    } catch (e) {
+      note(e.message);
+    }
+  }
+
+  function openFound(m, r) {
+    busy(true);
+
+    playInfo(r.movie_id).then(function (p) {
+      busy(false);
+
+      var ctx = {
+        id: r.movie_id,
+        title: m.title || m.name || r.title || 'UAKino',
+        p: p,
+        voice: (p.current && p.current.voice) ||
+          (p.voices && p.voices[0]) || null,
+        vars: []
+      };
+
+      if (
+        (m.name || m.first_air_date ||
+          m.number_of_seasons) &&
+        Array.isArray(p.episodes) &&
+        p.episodes.length
+      ) {
+        return episodes(ctx);
+      }
+
+      return variants(manifest(p)).then(function (v) {
+        ctx.vars = v;
+        qualityMenu(ctx);
+      });
+    }).catch(function (e) {
+      busy(false);
+      note('Відтворення: ' + e.message);
+    });
+  }
+
+  function searchMovie(m) {
+    currentMovie = m;
+    busy(true);
+
+    findMovie(m).then(function (r) {
+      busy(false);
+
+      menu(
+        'UA Search 0.7.2',
+        [
+          {
+            title: 'UAKino',
+            subtitle: r.found
+              ? 'Знайдено: ' + r.title
+              : 'Не знайдено',
+            result: r
+          },
+          {
+            title: 'Toloka',
+            subtitle: 'Потрібен авторизований доступ',
+            action: 'toloka'
+          },
+          {
+            title: '⚙ Фільтри й каталог',
+            action: 'filters'
+          }
+        ],
+        function (it) {
+          if (it.action === 'filters') {
+            return showFilters();
+          }
+
+          if (it.action === 'toloka') {
+            return note('Toloka поки недоступна');
+          }
+
+          if (it.result && it.result.found) {
+            return openFound(m, r);
+          }
+
+          note('Фільм не знайдено');
+        }
+      );
+    }).catch(function (e) {
+      busy(false);
+      note('Пошук: ' + e.message);
+    });
+  }
+
+  function showMain() {
+    menu(
+      'UA Search 0.7.2',
+      [
+        { title: 'Каталог UAKino', action: 'catalog' },
+        { title: 'Фільтри', action: 'filters' },
+        { title: 'Тест API', action: 'test' },
+        { title: 'Очистити кеш', action: 'clear' }
+      ],
+      function (it) {
+        if (it.action === 'catalog') showCatalog();
+        if (it.action === 'filters') showFilters();
+        if (it.action === 'test') test();
+
+        if (it.action === 'clear') {
+          cache = {};
+          note('Кеш очищено');
+        }
+      }
+    );
+  }
+
+  function test() {
+    busy(true);
+
+    list('new', 1).then(function (d) {
+      busy(false);
+      note('API працює: ' +
+        d.results.length + ' записів');
+    }).catch(function (e) {
+      busy(false);
+      note('API: ' + e.message);
+    });
+  }
+
+  function addButton(e) {
+    if (
+      !e || !e.object || !e.data ||
+      !e.data.movie
+    ) return;
+
+    var r = e.object.activity.render();
+
+    if (r.find('.view--ua-search').length) return;
+
+    var b = $(
+      '<div class="full-start__button selector view--ua-search">' +
+      '<span>UA Search 0.7.2</span></div>'
+    );
+
+    b.on('hover:enter', function () {
+      searchMovie(e.data.movie);
+    });
+
+    var a = r.find('.view--torrent');
+
+    if (a.length) {
+      a.after(b);
+    } else {
+      r.find(
+        '.full-start-new__buttons, .full-start__buttons'
+      ).first().append(b);
+    }
+  }
+
+  function settings() {
+    if (
+      !Lampa.SettingsApi ||
+      typeof Lampa.SettingsApi.addParam !== 'function'
+    ) return;
+
+    [
+      [
+        'ua_search_072_filters',
+        'UA Search 0.7.2 · Фільтри',
+        showFilters
+      ],
+      [
+        'ua_search_072_catalog',
+        'UA Search 0.7.2 · Каталог',
+        showCatalog
+      ],
+      [
+        'ua_search_072_test',
+        'UA Search 0.7.2 · Тест API',
+        test
+      ]
+    ].forEach(function (a) {
+      try {
+        Lampa.SettingsApi.addParam({
+          component: 'interface',
+          param: {
+            name: a[0],
+            type: 'trigger',
+            default: false
+          },
+          field: {
+            name: a[1],
+            description: 'UA Search 0.7.2'
+          },
+          onChange: a[2]
+        });
+      } catch (e) {
+        console.log('[UA Search] Settings:', e);
+      }
+    });
+  }
+
+  var initTries = 0;
+
+  function init() {
+    if (
+      !window.Lampa ||
+      !Lampa.Listener ||
+      !Lampa.Select ||
+      !Lampa.Storage
+    ) {
+      if (++initTries < 40) {
+        setTimeout(init, 500);
+      }
+      return;
+    }
+
+    try {
+      Lampa.Listener.follow('full', function (e) {
+        if (e.type === 'complite') {
+          try {
+            addButton(e);
+          } catch (err) {
+            console.log('[UA Search] Button:', err);
+          }
+        }
+      });
+    } catch (e) {
+      console.log('[UA Search] Listener:', e);
+      return;
+    }
+
+    try {
+      settings();
+    } catch (e) {
+      console.log('[UA Search] Init settings:', e);
+    }
+
+    window.LampaUASearch072 = true;
+
+    window.LampaUASearch = {
+      version: VERSION,
+      filters: filters,
+      openFilters: showFilters,
+      catalog: showCatalog,
+      search: searchMovie,
+      test: test
+    };
+
+    note('0.7.2 завантажена');
+  }
+
+  try {
+    init();
+  } catch (e) {
+    console.log('[UA Search 0.7.2] Startup:', e);
+  }
+})();
