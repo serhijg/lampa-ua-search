@@ -1562,7 +1562,7 @@ function externalStreams(pageUrl){
 
 function menu(){
  var choices=[{title:'Пошук UAKino',value:'search'},{title:'UASerials · Фільми',value:'ext_uaserials'},{title:'UASerials · Серіали',value:'ext_uaserials_series'},{title:'Цікава Ідея · каталог (тест)',value:'ext_cikava'},{title:'UAFIX · каталог (тест)',value:'ext_uafix'}].concat(CATS.map(function(c){return {title:c[1],value:c[0]};}));
- Lampa.Select.show({title:'UA Search 1.2.2',items:choices,onBack:function(){setTimeout(focusMenu,80);},onSelect:function(item){
+ Lampa.Select.show({title:'UA Search 1.2.3',items:choices,onBack:function(){setTimeout(focusMenu,80);},onSelect:function(item){
   try{Lampa.Select.hide();}catch(e){}
   if(item.value==='search')setTimeout(search,180);
   else{
@@ -1594,7 +1594,7 @@ function init(){
  var css='.uas123-page{height:100%}.uas123-filters{display:flex;flex-wrap:wrap;gap:.7em;padding:1.2em 3em .4em}.uas123-filter{padding:.65em 1em;border-radius:.5em;background:#303642;color:#fff}.uas123-filter.focus{background:#fff;color:#111}.uas123-status{padding:.4em 3em;font-size:.9em;opacity:.7}.uas123-body{padding:1em 3em 4em}.uas123-grid{display:grid;grid-template-columns:repeat(5,minmax(0,1fr));gap:1.2em}.uas123-card{min-width:0;padding:.4em;border-radius:.6em}.uas123-card.focus{background:#fff;color:#111}.uas123-poster{aspect-ratio:2/3;background:#252a35 center/cover no-repeat;border-radius:.35em}.uas123-name{font-size:1.1em;font-weight:600;margin-top:.5em;overflow:hidden;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical}.uas123-meta{font-size:.9em;opacity:.7;margin-top:.3em}.uas123-empty{padding:2em;opacity:.7}.uas123-search{padding:.7em 1em;margin:.5em;border-radius:.5em;background:#1f6feb;color:#fff}.uas123-detail{padding:1.5em 3em 5em}.uas123-detail-head{display:flex;gap:2em;margin-bottom:1.5em}.uas123-detail-poster{width:13em;min-width:13em;aspect-ratio:2/3;background:#252a35 center/cover no-repeat;border-radius:.5em}.uas123-detail-info{flex:1;min-width:0}.uas123-detail-title{font-size:2em;font-weight:700;margin-bottom:.4em}.uas123-description{font-size:1.05em;line-height:1.5;max-width:55em;margin-top:1em}.uas123-reactions{font-size:1.2em;margin:1em 0}.uas123-heading{font-size:1.4em;font-weight:700;margin:1em 0 .6em}.uas123-cast{display:flex;gap:1em;overflow-x:auto;margin-bottom:1.5em}.uas123-actor{width:8em;min-width:8em}.uas123-actor-photo{width:100%;aspect-ratio:2/3;background:#252a35 center/cover no-repeat;border-radius:.4em}.uas123-action{display:block;padding:.9em 1.2em;margin:.5em 0;background:#303642;border-radius:.5em;max-width:32em}.uas123-action.focus{background:#fff;color:#111}.uas123-stream-status{opacity:.7;font-size:.9em;margin-top:1em}body.true--mobile .uas123-grid{grid-template-columns:repeat(3,minmax(0,1fr))}';
  $('<style id="uas123-style"></style>').text(css).appendTo('head');
  var ready=false;
- function start(){if(ready)return;ready=true;addMenu();setInterval(function(){try{addMenu();addSearch();}catch(e){log(e.message);}},2000);note('UA Search 1.2.2 активовано');}
+ function start(){if(ready)return;ready=true;addMenu();setInterval(function(){try{addMenu();addSearch();}catch(e){log(e.message);}},2000);note('UA Search 1.2.3 активовано');}
  if(window.appready)start();
  else Lampa.Listener.follow('app',function(e){if(e.type==='ready')start();});
 }
