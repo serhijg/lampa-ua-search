@@ -2,11 +2,11 @@
 (function () {
 'use strict';
 
-if (window.UA_SEARCH_093) return;
-window.UA_SEARCH_093 = true;
+if (window.UA_SEARCH_094) return;
+window.UA_SEARCH_094 = true;
 
 var API = 'https://uakino.ax';
-var COMPONENT = 'ua_search_093';
+var COMPONENT = 'ua_search_094';
 var LIMIT = 60;
 var MAX_PAGES = 30;
 
@@ -312,7 +312,7 @@ function controllerName() {
 }
 
 function menuElement() {
- return $('.menu [data-uas93="menu"]').first();
+ return $('.menu [data-uas94="menu"]').first();
 }
 
 function focusMenu() {
@@ -347,8 +347,7 @@ function restoreAfterSearch(session,reason) {
   try {session.observer.disconnect();}
   catch(e) {}
  }
- if(session.timer) clearInterval(session.timer); if(session.backTimer)  clearTimeout(session.backTimer);
- if(searchSession === session)
+ if(session.timer) clearInterval(session.timer); if(session.backTimer)  clearTimeout(session.backTimer); if(searchSession === session)
   searchSession = null;
 
  // Let Lampa finish closing its input/modal first.
@@ -697,8 +696,7 @@ function Page(o) {
    if(dir==='up') {
     if(detailCursor===0)
      Lampa.Controller.toggle('head');    else
-     focusDetail(detailCursor-1);
-   }
+     focusDetail(detailCursor-1);   }
 
    if(dir==='down')
     focusDetail(detailCursor+1);
@@ -851,24 +849,24 @@ function Page(o) {
 
  function makeCard(it) {
   var el=$(
-   '<div class="uas93-card selector">'+
-    '<div class="uas93-poster"></div>'+
-    '<div class="uas93-name"></div>'+
-    '<div class="uas93-meta"></div>'+
+   '<div class="uas94-card selector">'+
+    '<div class="uas94-poster"></div>'+
+    '<div class="uas94-name"></div>'+
+    '<div class="uas94-meta"></div>'+
    '</div>'
   );
 
   var p=posterUrl(it);
 
   if(p) {
-   el.find('.uas93-poster').css(
+   el.find('.uas94-poster').css(
     'background-image',
     'url("'+p.replace(/"/g,'%22')+'")'
    );
   }
 
-  el.find('.uas93-name').text(titleOf(it));
-  el.find('.uas93-meta').text(metadata(it));
+  el.find('.uas94-name').text(titleOf(it));
+  el.find('.uas94-meta').text(metadata(it));
 
   el.on('hover:enter',function() {
    openDetails(it);
@@ -898,7 +896,7 @@ function Page(o) {
 
   if(!visibleItems.length) {
    body.append(
-    $('<div class="uas93-empty"></div>')
+    $('<div class="uas94-empty"></div>')
      .text(
       loading ?
       'Завантаження…' :
@@ -910,7 +908,7 @@ function Page(o) {
    return;
   }
 
-  var grid=$('<div class="uas93-grid"></div>');
+  var grid=$('<div class="uas94-grid"></div>');
 
   visibleItems.forEach(function(it,index) {
    var el=makeCard(it);
@@ -1047,8 +1045,7 @@ function Page(o) {
   if(type==='year') {
    title='Рік випуску';
    choices=[
-    {title:'Усі роки',value:'all'},
-    {title:'2020 і новіші',value:'2020+'},
+    {title:'Усі роки',value:'all'},    {title:'2020 і новіші',value:'2020+'},
     {title:'2010–2019',value:'2010-2019'},
     {title:'До 2010',value:'before2010'}
    ];
@@ -1096,7 +1093,7 @@ function Page(o) {
    ['sort','Сортування: '+names[settings.sort]],
    ['reset','Скинути']
   ].forEach(function(pair){
-   var el=$('<div class="uas93-filter selector"></div>').text(pair[1]);
+   var el=$('<div class="uas94-filter selector"></div>').text(pair[1]);
    el.on('hover:enter',function(){filterAction(pair[0]);});
    el.on('hover:focus',function(){zone='filters';filterCursor=filters.indexOf(el[0]);});
    filterBar.append(el);
@@ -1104,7 +1101,7 @@ function Page(o) {
   });
  }
  function addDetailControl(label,fn){
-  var el=$('<div class="uas93-action selector"></div>').text(label);
+  var el=$('<div class="uas94-action selector"></div>').text(label);
   el.on('hover:enter',fn);
   el.on('hover:focus',function(){zone='detail';detailCursor=detailControls.indexOf(el[0]);});
   detail.append(el);
@@ -1114,25 +1111,25 @@ function Page(o) {
   if(destroyed||view!=='detail'||!selected)return;
   detail.empty();
   detailControls=[];
-  var head=$('<div class="uas93-detail-head"></div>');
-  var image=$('<div class="uas93-detail-poster"></div>');
+  var head=$('<div class="uas94-detail-head"></div>');
+  var image=$('<div class="uas94-detail-poster"></div>');
   var p=posterUrl(selected);
   if(p)image.css('background-image','url("'+p.replace(/"/g,'%22')+'")');
-  var info=$('<div class="uas93-detail-info"></div>');
-  info.append($('<div class="uas93-detail-title"></div>').text(titleOf(selected)));
-  info.append($('<div class="uas93-meta"></div>').text(metadata(selected)));
-  info.append($('<div class="uas93-description"></div>').text(selected.overview||selected.description||selected.plot||selected.short_story||'Опис відсутній'));
+  var info=$('<div class="uas94-detail-info"></div>');
+  info.append($('<div class="uas94-detail-title"></div>').text(titleOf(selected)));
+  info.append($('<div class="uas94-meta"></div>').text(metadata(selected)));
+  info.append($('<div class="uas94-description"></div>').text(selected.overview||selected.description||selected.plot||selected.short_story||'Опис відсутній'));
   head.append(image,info);
   detail.append(head);
   var reactions=reactionsOf(selected);
-  if(reactions)detail.append($('<div class="uas93-reactions"></div>').text('👍 '+reactions.likes+'   👎 '+reactions.dislikes));
+  if(reactions)detail.append($('<div class="uas94-reactions"></div>').text('👍 '+reactions.likes+'   👎 '+reactions.dislikes));
   var actors=castOf(selected);
   if(actors.length){
-   detail.append($('<div class="uas93-heading"></div>').text('Актори'));
-   var row=$('<div class="uas93-cast"></div>');
+   detail.append($('<div class="uas94-heading"></div>').text('Актори'));
+   var row=$('<div class="uas94-cast"></div>');
    actors.slice(0,20).forEach(function(actor){
-    var el=$('<div class="uas93-actor"></div>');
-    var photo=$('<div class="uas93-actor-photo"></div>');
+    var el=$('<div class="uas94-actor"></div>');
+    var photo=$('<div class="uas94-actor-photo"></div>');
     if(actor.photo)photo.css('background-image','url("'+absolute(actor.photo).replace(/"/g,'%22')+'")');
     el.append(photo,$('<div></div>').text(actor.name),$('<small></small>').text(actor.character||''));
     row.append(el);
@@ -1152,7 +1149,7 @@ function Page(o) {
    });
   });
   addDetailControl('← До каталогу',closeDetails);
-  detail.append($('<div class="uas93-stream-status"></div>').text(stream?'Доступних варіантів: '+qualities.length:'Завантаження потоку…'));
+  detail.append($('<div class="uas94-stream-status"></div>').text(stream?'Доступних варіантів: '+qualities.length:'Завантаження потоку…'));
   if(started&&active())setTimeout(restoreFocus,70);
  }
  function openDetails(it){
@@ -1169,7 +1166,7 @@ function Page(o) {
     renderDetails();
    }).catch(function(){});
   }).catch(function(e){
-   if(token===detailRequest&&view==='detail')detail.find('.uas93-stream-status').text('Помилка: '+e.message);
+   if(token===detailRequest&&view==='detail')detail.find('.uas94-stream-status').text('Помилка: '+e.message);
   });
  }
  function closeDetails(){
@@ -1178,12 +1175,12 @@ function Page(o) {
   setTimeout(function(){if(active())focusTile(cursor);},80);
  }
  this.create=function(){
-  root=$('<div class="uas93-page"></div>');
+  root=$('<div class="uas94-page"></div>');
   scroll=new Lampa.Scroll({mask:true,over:true,step:250});
-  filterBar=$('<div class="uas93-filters"></div>');
-  statusBar=$('<div class="uas93-status"></div>');
-  body=$('<div class="uas93-body"></div>');
-  detail=$('<div class="uas93-detail"></div>').hide();
+  filterBar=$('<div class="uas94-filters"></div>');
+  statusBar=$('<div class="uas94-status"></div>');
+  body=$('<div class="uas94-body"></div>');
+  detail=$('<div class="uas94-detail"></div>').hide();
   scroll.append(filterBar);scroll.append(statusBar);scroll.append(body);scroll.append(detail);
   root.append(scroll.render());
   // Required for Lampa.Layer to calculate the scroll viewport height.
@@ -1214,53 +1211,77 @@ function show(query,cat,title){
  Lampa.Activity.push({url:'',title:title||'UA Search',component:COMPONENT,query:query||'',cat:cat||'new',page:1});
 }
 function tolokaDiagnostics(){
- var base='https://toloka.to/';
- note('Toloka: перевірка з’єднання…');
- function probe(mode){
+ var url='https://toloka.to/';
+ var results=[];
+ note('Toloka: перевірка способів HTTP…');
+ function add(name,result){results.push(name+': '+result);}
+ function xhrProbe(){
   return new Promise(function(resolve){
-   var xhr=new XMLHttpRequest();
-   var done=false;
-   function finish(result){
-    if(done)return;
-    done=true;
-    resolve(mode+': '+result);
-   }
+   var x=new XMLHttpRequest(),finished=false;
+   function done(v){if(finished)return;finished=true;add('XHR',v);resolve();}
    try{
-    xhr.open('GET',base+'?ua_search_test='+Date.now(),true);
-    xhr.timeout=12000;
-    if(mode==='cookies')xhr.withCredentials=true;
-    xhr.onload=function(){
-     var body=String(xhr.responseText||'').slice(0,12000);
-     var auth=/name=["'](?:username|password|login)["']|action=["'][^"']*login|увійти до системи/i.test(body);
-     var captcha=/captcha|cloudflare|just a moment|checking your browser/i.test(body);
-     finish('HTTP '+xhr.status+(captcha?' · CAPTCHA/захист':auth?' · сторінка входу':' · відповідь отримана'));
-    };
-    xhr.onerror=function(){finish('мережа/CORS (статус недоступний)');};
-    xhr.ontimeout=function(){finish('таймаут 12 с');};
-    xhr.send();
-   }catch(e){finish('помилка запиту: '+e.message);}
+    x.open('GET',url+'?uas_probe='+Date.now(),true);
+    x.timeout=10000;
+    x.onload=function(){done('HTTP '+x.status+inspect(x.responseText));};
+    x.onerror=function(){done('мережа/CORS');};
+    x.ontimeout=function(){done('таймаут');};
+    x.send();
+   }catch(e){done('недоступний: '+e.message);}
   });
  }
- probe('без cookies').then(function(a){
-  return probe('із cookies').then(function(b){return [a,b];});
- }).then(function(lines){
-  log('Toloka diagnostics:',lines.join(' | '));
+ function inspect(html){
+  var t=String(html||'').slice(0,12000);
+  if(/captcha|cloudflare|just a moment/i.test(t))return ' · CAPTCHA/захист';
+  if(/name=["']password["']|login\.php/i.test(t))return ' · можлива сторінка входу';
+  return ' · відповідь отримано';
+ }
+ function nativeProbe(){
+  return new Promise(function(resolve){
+   var native=window.cordova&&window.cordova.plugin&&window.cordova.plugin.http;
+   if(!native||typeof native.get!=='function'){
+    add('Native HTTP','модуль недоступний');resolve();return;
+   }
+   var done=false;
+   var timer=setTimeout(function(){finish('таймаут');},12000);
+   function finish(v){if(done)return;done=true;clearTimeout(timer);add('Native HTTP',v);resolve();}
+   try{
+    native.get(url,{}, {},function(r){finish('HTTP '+r.status+inspect(r.data));},
+     function(e){finish('помилка '+(e&&e.status!=null?e.status:'з’єднання'));});
+   }catch(e){finish('виняток: '+e.message);}
+  });
+ }
+ function lampaProbe(){
+  return new Promise(function(resolve){
+   if(typeof Lampa.Reguest!=='function'){
+    add('Lampa.Reguest','модуль недоступний');resolve();return;
+   }
+   var done=false,timer=setTimeout(function(){finish('таймаут');},12000);
+   function finish(v){if(done)return;done=true;clearTimeout(timer);add('Lampa.Reguest',v);resolve();}
+   try{
+    var req=new Lampa.Reguest();
+    if(typeof req.silent==='function')req.silent(url,function(data){finish('відповідь отримано'+inspect(data));},function(e){finish('помилка '+String(e&&e.status||'мережа/CORS'));});
+    else if(typeof req.get==='function')req.get(url,function(data){finish('відповідь отримано'+inspect(data));},function(e){finish('помилка '+String(e&&e.status||'мережа/CORS'));});
+    else finish('немає підтримуваного методу');
+   }catch(e){finish('виняток: '+e.message);}
+  });
+ }
+ xhrProbe().then(nativeProbe).then(lampaProbe).then(function(){
+  log('Toloka 0.9.4:',results.join(' | '));
   Lampa.Select.show({
-   title:'Toloka · діагностика 0.9.3',
-   items:[
-    {title:lines[0],value:0},
-    {title:lines[1],value:1},
-    {title:'Авторизація Chrome не передається автоматично до APK Lampa',value:2},
-    {title:'OK · Закрити',value:3}
-   ],
+   title:'Toloka · діагностика 0.9.4',
+   items:results.map(function(v,i){return {title:v,value:i};}).concat([
+    {title:'Без паролів і cookies — лише перевірка доступу',value:99},
+    {title:'OK · Закрити',value:100}
+   ]),
    onSelect:function(){try{Lampa.Select.hide();}catch(e){}setTimeout(focusMenu,90);},
    onBack:function(){setTimeout(focusMenu,90);}
   });
  }).catch(function(e){note('Toloka: '+e.message);});
 }
+
 function menu(){
- var choices=[{title:'Пошук UAKino',value:'search'},{title:'Toloka · перевірити підключення',value:'toloka-test'}].concat(CATS.map(function(c){return {title:c[1],value:c[0]};}));
- Lampa.Select.show({title:'UA Search 0.9.3',items:choices,onBack:function(){setTimeout(focusMenu,80);},onSelect:function(item){
+ var choices=[{title:'Пошук UAKino',value:'search'},{title:'Toloka · діагностика HTTP',value:'toloka-test'}].concat(CATS.map(function(c){return {title:c[1],value:c[0]};}));
+ Lampa.Select.show({title:'UA Search 0.9.4',items:choices,onBack:function(){setTimeout(focusMenu,80);},onSelect:function(item){
   try{Lampa.Select.hide();}catch(e){}
   if(item.value==='search')setTimeout(search,180);
   else if(item.value==='toloka-test')setTimeout(tolokaDiagnostics,180);
@@ -1271,28 +1292,28 @@ function menu(){
  }});
 }
 function addMenu(){
- if($('.menu [data-uas93="menu"]').length)return;
+ if($('.menu [data-uas94="menu"]').length)return;
  var list=$('.menu .menu__list').first();
  if(!list.length)return;
- var el=$('<li class="menu__item selector" data-uas93="menu"><div class="menu__ico">UA</div><div class="menu__text">UA Search</div></li>');
+ var el=$('<li class="menu__item selector" data-uas94="menu"><div class="menu__ico">UA</div><div class="menu__text">UA Search</div></li>');
  el.on('hover:enter',menu);
  var anchor=$('.menu [data-action="settings"]').first();
  if(anchor.length)anchor.before(el);else list.prepend(el);
 }
 function addSearch(){
  var area=$('.activity--active').find('.search,.search-box,.search__body').first();
- if(!area.length||area.find('[data-uas93="search"]').length)return;
- var el=$('<div class="uas93-search selector" data-uas93="search">UA Search · українські фільми</div>');
+ if(!area.length||area.find('[data-uas94="search"]').length)return;
+ var el=$('<div class="uas94-search selector" data-uas94="search">UA Search · українські фільми</div>');
  el.on('hover:enter click',search);
  area.prepend(el);
 }
 function init(){
  if(!window.Lampa||!Lampa.Component||!Lampa.Activity||!Lampa.Select||!Lampa.Input||!window.$)return setTimeout(init,500);
  Lampa.Component.add(COMPONENT,Page);
- var css='.uas93-page{height:100%}.uas93-filters{display:flex;flex-wrap:wrap;gap:.7em;padding:1.2em 3em .4em}.uas93-filter{padding:.65em 1em;border-radius:.5em;background:#303642;color:#fff}.uas93-filter.focus{background:#fff;color:#111}.uas93-status{padding:.4em 3em;font-size:.9em;opacity:.7}.uas93-body{padding:1em 3em 4em}.uas93-grid{display:grid;grid-template-columns:repeat(5,minmax(0,1fr));gap:1.2em}.uas93-card{min-width:0;padding:.4em;border-radius:.6em}.uas93-card.focus{background:#fff;color:#111}.uas93-poster{aspect-ratio:2/3;background:#252a35 center/cover no-repeat;border-radius:.35em}.uas93-name{font-size:1.1em;font-weight:600;margin-top:.5em;overflow:hidden;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical}.uas93-meta{font-size:.9em;opacity:.7;margin-top:.3em}.uas93-empty{padding:2em;opacity:.7}.uas93-search{padding:.7em 1em;margin:.5em;border-radius:.5em;background:#1f6feb;color:#fff}.uas93-detail{padding:1.5em 3em 5em}.uas93-detail-head{display:flex;gap:2em;margin-bottom:1.5em}.uas93-detail-poster{width:13em;min-width:13em;aspect-ratio:2/3;background:#252a35 center/cover no-repeat;border-radius:.5em}.uas93-detail-info{flex:1;min-width:0}.uas93-detail-title{font-size:2em;font-weight:700;margin-bottom:.4em}.uas93-description{font-size:1.05em;line-height:1.5;max-width:55em;margin-top:1em}.uas93-reactions{font-size:1.2em;margin:1em 0}.uas93-heading{font-size:1.4em;font-weight:700;margin:1em 0 .6em}.uas93-cast{display:flex;gap:1em;overflow-x:auto;margin-bottom:1.5em}.uas93-actor{width:8em;min-width:8em}.uas93-actor-photo{width:100%;aspect-ratio:2/3;background:#252a35 center/cover no-repeat;border-radius:.4em}.uas93-action{display:block;padding:.9em 1.2em;margin:.5em 0;background:#303642;border-radius:.5em;max-width:32em}.uas93-action.focus{background:#fff;color:#111}.uas93-stream-status{opacity:.7;font-size:.9em;margin-top:1em}body.true--mobile .uas93-grid{grid-template-columns:repeat(3,minmax(0,1fr))}';
- $('<style id="uas93-style"></style>').text(css).appendTo('head');
+ var css='.uas94-page{height:100%}.uas94-filters{display:flex;flex-wrap:wrap;gap:.7em;padding:1.2em 3em .4em}.uas94-filter{padding:.65em 1em;border-radius:.5em;background:#303642;color:#fff}.uas94-filter.focus{background:#fff;color:#111}.uas94-status{padding:.4em 3em;font-size:.9em;opacity:.7}.uas94-body{padding:1em 3em 4em}.uas94-grid{display:grid;grid-template-columns:repeat(5,minmax(0,1fr));gap:1.2em}.uas94-card{min-width:0;padding:.4em;border-radius:.6em}.uas94-card.focus{background:#fff;color:#111}.uas94-poster{aspect-ratio:2/3;background:#252a35 center/cover no-repeat;border-radius:.35em}.uas94-name{font-size:1.1em;font-weight:600;margin-top:.5em;overflow:hidden;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical}.uas94-meta{font-size:.9em;opacity:.7;margin-top:.3em}.uas94-empty{padding:2em;opacity:.7}.uas94-search{padding:.7em 1em;margin:.5em;border-radius:.5em;background:#1f6feb;color:#fff}.uas94-detail{padding:1.5em 3em 5em}.uas94-detail-head{display:flex;gap:2em;margin-bottom:1.5em}.uas94-detail-poster{width:13em;min-width:13em;aspect-ratio:2/3;background:#252a35 center/cover no-repeat;border-radius:.5em}.uas94-detail-info{flex:1;min-width:0}.uas94-detail-title{font-size:2em;font-weight:700;margin-bottom:.4em}.uas94-description{font-size:1.05em;line-height:1.5;max-width:55em;margin-top:1em}.uas94-reactions{font-size:1.2em;margin:1em 0}.uas94-heading{font-size:1.4em;font-weight:700;margin:1em 0 .6em}.uas94-cast{display:flex;gap:1em;overflow-x:auto;margin-bottom:1.5em}.uas94-actor{width:8em;min-width:8em}.uas94-actor-photo{width:100%;aspect-ratio:2/3;background:#252a35 center/cover no-repeat;border-radius:.4em}.uas94-action{display:block;padding:.9em 1.2em;margin:.5em 0;background:#303642;border-radius:.5em;max-width:32em}.uas94-action.focus{background:#fff;color:#111}.uas94-stream-status{opacity:.7;font-size:.9em;margin-top:1em}body.true--mobile .uas94-grid{grid-template-columns:repeat(3,minmax(0,1fr))}';
+ $('<style id="uas94-style"></style>').text(css).appendTo('head');
  var ready=false;
- function start(){if(ready)return;ready=true;addMenu();setInterval(function(){try{addMenu();addSearch();}catch(e){log(e.message);}},2000);note('UA Search 0.9.3 активовано');}
+ function start(){if(ready)return;ready=true;addMenu();setInterval(function(){try{addMenu();addSearch();}catch(e){log(e.message);}},2000);note('UA Search 0.9.4 активовано');}
  if(window.appready)start();
  else Lampa.Listener.follow('app',function(e){if(e.type==='ready')start();});
 }
