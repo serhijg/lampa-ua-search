@@ -2,435 +2,443 @@
 (function () {
   'use strict';
 
-  var VERSION = '0.5.0';
-  if (window.ua_search_v05) return;
-  window.ua_search_v05 = true;
+  var VERSION = '0.6';
+  var API = 'https://uakino.ax';
+  var TOLOKA = 'https://toloka.to';
+  var TIMEOUT = 20000;
 
-  var SOURCES = {
-    uakino: {
-      name: 'UAKino',
-      base: 'https://uakino.me/',
-      search: function (q) {
-        return 'https://uakino.me/index.php?do=search&subaction=search&story=' +
-          encodeURIComponent(q);
-      }
-    },
-    toloka: {
-      name: 'Toloka',
-      base: 'https://toloka.to/',
-      search: function (q) {
-        return 'https://toloka.to/tracker.php?nm=' +
-          encodeURIComponent(q);
-      }
-    }
-  };
+  if (window.LampaUASearch06) return;
+  window.LampaUASearch06 = true;
 
-  var lastQuery = 'Avatar';
-  var lastResults = [];
-  var lastError = '';
+  var cache = {};
+  var categories = [
+    ['new', 'Новинки'],
+    ['films', 'Фільми'],
+    ['series', 'Серіали'],
+    ['cartoons', 'Мультфільми'],
+    ['anime', 'Аніме'],
+    ['4k', '4K']
+  ];
 
-  function note(s) {
-    console.log('[UA Search 0.5] ' + s);
-
-    if (window.Lampa &&
-        Lampa.Noty &&
-        Lampa.Noty.show) {
-      Lampa.Noty.show(s);
+  function notify(message) {
+    try {
+      Lampa.Noty.show('UA Search: ' + message);
+    } catch (e) {
+      console.log('[UA Search]', message);
     }
   }
 
-  function input(callback) {
-    if (!Lampa.Input || !Lampa.Input.edit) {
-      return note('Lampa.Input недоступний');
-    }
+  function log() {
+    try {
+      console.log.apply(console, ['[UA Search 0.6]'].concat(
+        Array.prototype.slice.call(arguments)
+      ));
+    } catch (e) {}
+  }
 
-    Lampa.Input.edit({
-      title: 'Назва фільму або серіалу',
-      value: lastQuery,
-      free: true
-    }, function (value) {
-      var q = String(value || '').trim();
+  function request(url) {
+    return new Promise(function (resolve, reject) {
+      var xhr = new XMLHttpRequest();
+      var finished = false;
 
-      if (q) {
-        lastQuery = q;
-        callback(q);
+      function fail(message) {
+        if (finished) return;
+        finished = true;
+        reject(new Error(message));
       }
-    });
-  }
 
-  function normalize(data) {
-    if (typeof data === 'string') return data;
+      xhr.open('GET', url, true);
+      xhr.timeout = TIMEOUT;
 
-    if (data &&
-        typeof data.responseText === 'string') {
-      return data.responseText;
-    }
+      xhr.onload = function () {
+        if (finished) return;
+        finished = true;
 
-    if (data && typeof data.body === 'string') {
-      return data.body;
-    }
-
-    if (data && typeof data.data === 'string') {
-      return data.data;
-    }
-
-    return '';
-  }
-
-  function parse(key, html) {
-    var doc = new DOMParser().parseFromString(
-      html,
-      'text/html'
-    );
-
-    var selectors = key === 'uakino'
-      ? '.movie-item a[href], ' +
-        '.shortstory a[href], ' +
-        '.shortstory-title a[href], ' +
-        '.movie-title a[href], ' +
-        'a[href*="/filmy/"], ' +
-        'a[href*="/serialy/"]'
-      : 'a[href*="viewtopic.php"]';
-
-    var anchors = doc.querySelectorAll(selectors);
-    var seen = {};
-    var result = [];
-
-    Array.prototype.forEach.call(
-      anchors,
-      function (a) {
-        var title = (
-          a.getAttribute('title') ||
-          a.textContent ||
-          ''
-        ).replace(/\s+/g, ' ').trim();
-
-        var href = a.getAttribute('href');
-
-        if (!href || title.length < 3) return;
+        if (xhr.status < 200 || xhr.status >= 300) {
+          reject(new Error('HTTP ' + xhr.status));
+          return;
+        }
 
         try {
-          var url = new URL(
-            href,
-            SOURCES[key].base
-          );
-
-          if (
-            url.protocol !== 'https:' ||
-            url.hostname !==
-              new URL(SOURCES[key].base).hostname
-          ) return;
-
-          if (seen[url.href]) return;
-
-          seen[url.href] = true;
-
-          result.push({
-            title: title,
-            url: url.href
-          });
-        } catch (e) {}
-      }
-    );
-
-    return result.slice(0, 40);
-  }
-
-  function inspect(key, html) {
-    var lower = html.toLowerCase();
-
-    if (!html || html.length < 100) {
-      return 'Порожня HTTP-відповідь';
-    }
-
-    if (
-      /just a moment|cf-challenge|cf-turnstile|captcha/
-        .test(lower)
-    ) {
-      return 'Захист CAPTCHA / Cloudflare';
-    }
-
-    if (
-      key === 'toloka' &&
-      /login\.php|name="username"|name="password"/
-        .test(lower) &&
-      !/viewtopic\.php/.test(lower)
-    ) {
-      return 'Потрібна авторизація Toloka';
-    }
-
-    return '';
-  }
-
-  function show(key, results) {
-    lastResults = results;
-
-    if (!results.length) {
-      return note('Результатів не знайдено');
-    }
-
-    if (!Lampa.Select || !Lampa.Select.show) {
-      return note(
-        'Lampa.Select недоступний; результатів: ' +
-        results.length
-      );
-    }
-
-    var items = results.map(function (r, i) {
-      return {
-        title: r.title,
-        subtitle: SOURCES[key].name,
-        index: i
+          resolve(JSON.parse(xhr.responseText));
+        } catch (e) {
+          reject(new Error('Некоректна JSON-відповідь'));
+        }
       };
-    });
 
-    Lampa.Select.show({
-      title: SOURCES[key].name + ': ' +
-        results.length,
-      items: items,
-      onSelect: function (item) {
-        var r = results[item.index];
+      xhr.onerror = function () {
+        fail('Мережева помилка або CORS');
+      };
 
-        if (r) {
-          note(
-            'Знайдено: ' + r.title +
-            '. Відтворення ще не реалізовано.'
-          );
-        }
-      },
-      onBack: function () {
-        if (
-          Lampa.Controller &&
-          Lampa.Controller.toggle
-        ) {
-          Lampa.Controller.toggle('settings');
-        }
-      }
-    });
-  }
+      xhr.ontimeout = function () {
+        fail('Таймаут 20 секунд');
+      };
 
-  function fetchSource(key, query) {
-    var url = SOURCES[key].search(query);
-
-    note('Пошук ' + SOURCES[key].name + '...');
-
-    var done = false;
-
-    var timer = setTimeout(function () {
-      finishError('Таймаут 20 секунд');
-    }, 20000);
-
-    function finishError(message) {
-      if (done) return;
-
-      done = true;
-      clearTimeout(timer);
-
-      lastError = SOURCES[key].name +
-        ': ' + message;
-
-      note(lastError);
-    }
-
-    function success(data) {
-      if (done) return;
-
-      var html = normalize(data);
-      var issue = inspect(key, html);
-
-      if (issue) {
-        return finishError(issue);
-      }
-
-      var results;
+      xhr.onabort = function () {
+        fail('Запит скасовано');
+      };
 
       try {
-        results = parse(key, html);
+        xhr.send();
       } catch (e) {
-        return finishError(
-          'Помилка HTML-парсера: ' + e.message
-        );
+        fail(e.message || 'Помилка запиту');
       }
+    });
+  }
+
+  function params(obj) {
+    return Object.keys(obj).filter(function (key) {
+      return obj[key] !== undefined &&
+             obj[key] !== null &&
+             obj[key] !== '';
+    }).map(function (key) {
+      return encodeURIComponent(key) + '=' +
+             encodeURIComponent(obj[key]);
+    }).join('&');
+  }
+
+  function searchUAKino(movie) {
+    var isTV = !!(
+      movie.name ||
+      movie.first_air_date ||
+      movie.number_of_seasons
+    );
+
+    var title = movie.title || movie.name || '';
+    var original = movie.original_title ||
+                   movie.original_name || '';
+    var date = movie.release_date ||
+               movie.first_air_date || '';
+
+    var url = API + '/hls/api/lampa/find?' + params({
+      tmdb: movie.id,
+      imdb: movie.imdb_id,
+      type: isTV ? 'tv' : 'movie',
+      year: date.slice(0, 4),
+      title: title,
+      orig: original
+    });
+
+    log('UAKino find:', url);
+
+    return request(url).then(function (data) {
+      log('UAKino response:', data);
+
+      if (!data || !data.found || !data.movie_id) {
+        return {
+          found: false,
+          source: 'UAKino',
+          message: 'Не знайдено'
+        };
+      }
+
+      return {
+        found: true,
+        source: 'UAKino',
+        title: data.title || title,
+        movie_id: data.movie_id,
+        data: data
+      };
+    });
+  }
+
+  function catalogUAKino(category, page) {
+    var url = API + '/hls/api/lampa/list?' + params({
+      cat: category || 'new',
+      page: page || 1,
+      limit: 30
+    });
+
+    return request(url).then(function (data) {
+      return data && data.results ? data.results : [];
+    });
+  }
+
+  function searchToloka(movie) {
+    // Toloka вимагає сесію користувача.
+    // Звичайний XHR не обходить CAPTCHA або CORS.
+    // Не повертаємо фальшивих результатів.
+    return Promise.resolve({
+      found: false,
+      source: 'Toloka',
+      restricted: true,
+      message: 'Потрібен авторизований API або проксі'
+    });
+  }
+
+  function loading(start) {
+    try {
+      if (start) {
+        Lampa.Loading.start(function () {
+          Lampa.Loading.stop();
+        });
+      } else {
+        Lampa.Loading.stop();
+      }
+    } catch (e) {}
+  }
+
+  function select(title, items, callback) {
+    Lampa.Select.show({
+      title: title,
+      items: items,
+      onSelect: callback,
+      onBack: function () {
+        try {
+          Lampa.Controller.toggle('full_start');
+        } catch (e) {}
+      }
+    });
+  }
+
+  function openOfficial(movie) {
+    // Використовуємо встановлений офіційний
+    // плагін UAKino для відкриття відео.
+    var button = document.querySelector(
+      '.view--uakino:not(.view--ua-search)'
+    );
+
+    if (button) {
+      try {
+        $(button).trigger('hover:enter');
+        return;
+      } catch (e) {}
+    }
+
+    notify('Для перегляду встановіть офіційний плагін UAKino');
+  }
+
+  function showMovieResults(movie) {
+    loading(true);
+
+    Promise.all([
+      searchUAKino(movie).catch(function (e) {
+        return {
+          found: false,
+          source: 'UAKino',
+          error: e.message
+        };
+      }),
+      searchToloka(movie)
+    ]).then(function (results) {
+      loading(false);
+
+      var items = results.map(function (r) {
+        return {
+          title: r.source,
+          subtitle: r.found
+            ? 'Знайдено: ' + r.title
+            : (r.error || r.message || 'Не знайдено'),
+          result: r
+        };
+      });
+
+      select('UA Search 0.6', items, function (item) {
+        var r = item.result;
+
+        if (r.found && r.source === 'UAKino') {
+          openOfficial(movie);
+        } else {
+          notify(r.error || r.message || 'Результатів немає');
+        }
+      });
+    });
+  }
+
+  function openCatalogItem(item) {
+    try {
+      var movie = {
+        id: item.id,
+        title: item.title || item.name,
+        name: item.is_series
+          ? (item.title || item.name)
+          : undefined,
+        original_title: item.original_title ||
+                        item.original,
+        original_name: item.original_name ||
+                       item.original,
+        release_date: item.year
+          ? String(item.year) + '-01-01'
+          : '',
+        first_air_date: item.is_series && item.year
+          ? String(item.year) + '-01-01'
+          : ''
+      };
+
+      showMovieResults(movie);
+    } catch (e) {
+      notify(e.message);
+    }
+  }
+
+  function showCatalog(category, page) {
+    loading(true);
+
+    catalogUAKino(category, page).then(function (results) {
+      loading(false);
 
       if (!results.length) {
-        return finishError(
-          'HTML отримано (' +
-          html.length +
-          ' символів), але релізи не визначено'
-        );
+        notify('Каталог порожній');
+        return;
       }
 
-      done = true;
-      clearTimeout(timer);
+      var items = results.map(function (item) {
+        return {
+          title: item.title || item.name || 'Без назви',
+          subtitle: [
+            item.year || '',
+            item.quality || ''
+          ].filter(Boolean).join(' · '),
+          movie: item
+        };
+      });
 
-      lastError = '';
-      show(key, results);
+      items.push({
+        title: 'Наступна сторінка',
+        next: true
+      });
+
+      select('UAKino · сторінка ' + page, items, function (item) {
+        if (item.next) {
+          showCatalog(category, page + 1);
+        } else {
+          openCatalogItem(item.movie);
+        }
+      });
+    }).catch(function (e) {
+      loading(false);
+      notify('UAKino: ' + e.message);
+    });
+  }
+
+  function showCategories() {
+    select('Каталог UAKino', categories.map(function (c) {
+      return {
+        title: c[1],
+        category: c[0]
+      };
+    }), function (item) {
+      showCatalog(item.category, 1);
+    });
+  }
+
+  function testConnection() {
+    loading(true);
+
+    request(API + '/hls/api/lampa/list?cat=new&page=1&limit=1')
+      .then(function (data) {
+        loading(false);
+        notify(
+          data && data.results
+            ? 'UAKino API працює'
+            : 'API відповідає, але немає результатів'
+        );
+      })
+      .catch(function (e) {
+        loading(false);
+        notify('Тест API: ' + e.message);
+      });
+  }
+
+  function addButton(e) {
+    if (!e || !e.object || !e.data || !e.data.movie) {
+      return;
     }
 
-    function fail(error) {
-      var message = error && (
-        error.statusText ||
-        error.message ||
-        error.status
-      );
+    var render = e.object.activity.render();
 
-      finishError(
-        'HTTP-помилка ' +
-        (message || 'без деталей')
-      );
+    if (render.find('.view--ua-search').length) return;
+
+    var button = $(
+      '<div class="full-start__button selector view--ua-search">' +
+        '<span>UA Search</span>' +
+      '</div>'
+    );
+
+    button.on('hover:enter', function () {
+      showMovieResults(e.data.movie);
+    });
+
+    var anchor = render.find('.view--torrent');
+
+    if (anchor.length) {
+      anchor.after(button);
+    } else {
+      render.find(
+        '.full-start-new__buttons, .full-start__buttons'
+      ).first().append(button);
     }
+  }
+
+  function registerSettings() {
+    if (!Lampa.SettingsApi ||
+        !Lampa.SettingsApi.addParam) return;
 
     try {
-      if (
-        Lampa.Network &&
-        typeof Lampa.Network.silent === 'function'
-      ) {
-        Lampa.Network.silent(
-          url,
-          success,
-          fail
-        );
-      } else if (
-        typeof Lampa.Reguest === 'function'
-      ) {
-        var req = new Lampa.Reguest();
+      Lampa.SettingsApi.addParam({
+        component: 'interface',
+        param: {
+          name: 'ua_search_catalog_06',
+          type: 'trigger',
+          default: false
+        },
+        field: {
+          name: 'UA Search 0.6 · Каталог UAKino',
+          description: 'Переглянути каталог без Jackett'
+        },
+        onChange: showCategories
+      });
 
-        if (typeof req.native !== 'function') {
-          return finishError(
-            'Немає HTTP-методу'
-          );
-        }
-
-        req.native(
-          url,
-          success,
-          fail,
-          false,
-          { timeout: 20000 }
-        );
-      } else {
-        finishError(
-          'Мережевий API Lampa недоступний'
-        );
-      }
+      Lampa.SettingsApi.addParam({
+        component: 'interface',
+        param: {
+          name: 'ua_search_test_06',
+          type: 'trigger',
+          default: false
+        },
+        field: {
+          name: 'UA Search 0.6 · Тест API',
+          description: 'Перевірити доступність UAKino'
+        },
+        onChange: testConnection
+      });
     } catch (e) {
-      finishError(
-        'Виняток: ' + e.message
-      );
+      log('Settings error:', e.message);
     }
   }
-
-  function param(id, title, desc, action) {
-    Lampa.SettingsApi.addParam({
-      component: 'ua_search',
-      param: {
-        name: 'ua05_' + id,
-        type: 'trigger',
-        default: false
-      },
-      field: {
-        name: title,
-        description: desc
-      },
-      onChange: action
-    });
-  }
-
-  function start() {
-    if (
-      !Lampa.SettingsApi ||
-      !Lampa.SettingsApi.addComponent ||
-      !Lampa.SettingsApi.addParam
-    ) return;
-
-    Lampa.SettingsApi.addComponent({
-      component: 'ua_search',
-      name: 'UA Search',
-      icon:
-        '<svg viewBox="0 0 24 24" ' +
-        'width="24" height="24" ' +
-        'fill="none" stroke="currentColor" ' +
-        'stroke-width="2">' +
-        '<circle cx="10" cy="10" r="7"/>' +
-        '<path d="m15 15 6 6"/></svg>'
-    });
-
-    param(
-      'uakino',
-      'Пошук UAKino',
-      'Спроба пошуку в Lampa без браузера',
-      function () {
-        input(function (q) {
-          fetchSource('uakino', q);
-        });
-      }
-    );
-
-    param(
-      'toloka',
-      'Діагностика Toloka',
-      'Перевірка доступу без Jackett',
-      function () {
-        input(function (q) {
-          fetchSource('toloka', q);
-        });
-      }
-    );
-
-    param(
-      'error',
-      'Остання помилка',
-      'Показати результат діагностики',
-      function () {
-        note(
-          lastError ||
-          'Помилок ще немає; останніх результатів: ' +
-          lastResults.length
-        );
-      }
-    );
-
-    param(
-      'version',
-      'Версія ' + VERSION,
-      'Без автоматичного відкриття браузера',
-      function () {
-        note('UA Search ' + VERSION);
-      }
-    );
-
-    note('UA Search ' + VERSION + ' завантажено');
-  }
-
-  var started = false;
 
   function init() {
-    if (
-      started ||
-      !window.Lampa ||
-      !Lampa.SettingsApi
-    ) return;
-
-    try {
-      start();
-      started = true;
-    } catch (e) {
-      console.error('[UA Search]', e);
+    if (!window.Lampa ||
+        !Lampa.Listener ||
+        !Lampa.Select) {
+      setTimeout(init, 500);
+      return;
     }
+
+    Lampa.Listener.follow('full', function (e) {
+      if (e.type === 'complite') {
+        try {
+          addButton(e);
+        } catch (err) {
+          log('Button error:', err);
+        }
+      }
+    });
+
+    registerSettings();
+
+    // Доступ для діагностики в консолі.
+    window.LampaUASearch = {
+      version: VERSION,
+      search: searchUAKino,
+      catalog: showCategories,
+      test: testConnection,
+      toloka: searchToloka
+    };
+
+    log('Plugin initialized');
+    notify('Версія 0.6 завантажена');
   }
 
-  if (window.appready) {
-    init();
-  } else if (
-    window.Lampa &&
-    Lampa.Listener &&
-    Lampa.Listener.follow
-  ) {
-    Lampa.Listener.follow(
-      'app',
-      function (e) {
-        if (e.type === 'ready') init();
-      }
-    );
-  }
+  init();
 })();
