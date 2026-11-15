@@ -1,10 +1,11 @@
+
 (function () {
   'use strict';
 
-  var VERSION = '0.2.0';
+  var VERSION = '0.3.0';
 
-  if (window.lampa_ua_search_v02) return;
-  window.lampa_ua_search_v02 = true;
+  if (window.lampa_ua_search_v03) return;
+  window.lampa_ua_search_v03 = true;
 
   var SOURCES = {
     toloka: {
@@ -27,13 +28,19 @@
     }
   }
 
-  function diagnose(source, html, status) {
-    var content = String(html || '').toLowerCase();
+  function diagnose(source, response) {
+    var html = '';
 
-    if (status < 200 || status >= 300) {
-      notify(source.name + ': HTTP ' + status);
-      return;
+    if (typeof response === 'string') {
+      html = response;
+    } else if (response && response.responseText) {
+      html = response.responseText;
+    } else if (response && response.body) {
+      html = response.body;
     }
+
+    html = String(html || '');
+    var content = html.toLowerCase();
 
     if (!content || content.length < 100) {
       notify(source.name + ': порожня відповідь');
@@ -42,34 +49,41 @@
 
     if (
       content.indexOf('cloudflare') !== -1 &&
-      (content.indexOf('challenge') !== -1 ||
-       content.indexOf('just a moment') !== -1)
+      (
+        content.indexOf('challenge') !== -1 ||
+        content.indexOf('just a moment') !== -1
+      )
     ) {
-      notify(source.name + ': захист Cloudflare');
+      notify(source.name + ': Cloudflare / CAPTCHA');
       return;
     }
 
     if (source.name === 'Toloka') {
-      var hasTorrentRows =
+      var hasRows =
         content.indexOf('torrow') !== -1 ||
-        content.indexOf('tracker.php') !== -1 &&
-        content.indexOf('download') !== -1;
+        (
+          content.indexOf('tracker.php') !== -1 &&
+          content.indexOf('download') !== -1
+        );
 
       var hasLogin =
         content.indexOf('login.php') !== -1 ||
         content.indexOf('вхід') !== -1;
 
-      if (hasTorrentRows) {
+      if (hasRows) {
         notify('Toloka: HTML отримано, є ознаки релізів');
       } else if (hasLogin) {
         notify('Toloka: можливо, потрібна авторизація');
       } else {
-        notify('Toloka: HTML отримано, релізи не визначено');
+        notify(
+          'Toloka: HTML отримано (' +
+          html.length + ' символів)'
+        );
       }
     } else {
       notify(
         'UAKino: HTML отримано (' +
-        content.length + ' символів)'
+        html.length + ' символів)'
       );
     }
   }
@@ -79,52 +93,69 @@
 
     if (!source) return;
 
-    notify('Перевіряємо ' + source.name + '...');
+    notify('Native тест: ' + source.name);
 
-    var xhr = new XMLHttpRequest();
+    if (
+      !window.Lampa ||
+      typeof Lampa.Reguest !== 'function'
+    ) {
+      notify('Lampa.Reguest недоступний');
+      return;
+    }
 
-    xhr.open('GET', source.url, true);
-    xhr.timeout = 15000;
-    xhr.withCredentials = false;
-
-    xhr.onreadystatechange = function () {
-      if (xhr.readyState !== 4) return;
-
-      diagnose(
-        source,
-        xhr.responseText,
-        xhr.status
-      );
-    };
-
-    xhr.onerror = function () {
-      notify(
-        source.name +
-        ': помилка мережі або CORS'
-      );
-    };
-
-    xhr.ontimeout = function () {
-      notify(
-        source.name +
-        ': час очікування вичерпано'
-      );
-    };
+    var request;
 
     try {
-      xhr.send();
+      request = new Lampa.Reguest();
+
+      if (typeof request.native !== 'function') {
+        notify('Native HTTP недоступний');
+        return;
+      }
+
+      request.native(
+        source.url,
+        function (response) {
+          diagnose(source, response);
+        },
+        function (error) {
+          var message = '';
+
+          if (typeof error === 'string') {
+            message = error;
+          } else if (error) {
+            message =
+              error.statusText ||
+              error.message ||
+              String(error.status || 'невідома');
+          }
+
+          notify(
+            source.name +
+            ': помилка Native HTTP: ' +
+            message
+          );
+        },
+        false,
+        {
+          timeout: 25000
+        }
+      );
     } catch (error) {
       notify(
-        source.name + ': ' + error.message
+        source.name +
+        ': ' + error.message
       );
     }
   }
 
   function start() {
-    if (!window.Lampa ||
-        !Lampa.SettingsApi ||
-        typeof Lampa.SettingsApi.addComponent !== 'function' ||
-        typeof Lampa.SettingsApi.addParam !== 'function') {
+    if (
+      !window.Lampa ||
+      !Lampa.SettingsApi ||
+      typeof Lampa.SettingsApi.addComponent !== 'function' ||
+      typeof Lampa.SettingsApi.addParam !== 'function'
+    ) {
       console.error('[UA Search] SettingsApi unavailable');
       return;
     }
@@ -151,8 +182,8 @@
           default: false
         },
         field: {
-          name: 'Перевірити ' + source.name,
-          description: 'Тест прямого HTTP-доступу'
+          name: 'Native тест: ' + source.name,
+          description: 'Перевірка прямого доступу без Jackett'
         },
         onChange: function () {
           testSource(key);
@@ -169,7 +200,7 @@
       },
       field: {
         name: 'Версія ' + VERSION,
-        description: 'Діагностика українських джерел'
+        description: 'Діагностика Native HTTP'
       },
       onChange: function () {
         notify('Lampa UA Search ' + VERSION);
@@ -183,7 +214,10 @@
 
   function initialize() {
     if (started) return;
-    if (!window.Lampa || !Lampa.SettingsApi) return;
+
+    if (!window.Lampa || !Lampa.SettingsApi) {
+      return;
+    }
 
     started = true;
     start();
@@ -191,7 +225,11 @@
 
   if (window.appready) {
     initialize();
-  } else if (window.Lampa && Lampa.Listener) {
+  } else if (
+    window.Lampa &&
+    Lampa.Listener &&
+    typeof Lampa.Listener.follow === 'function'
+  ) {
     Lampa.Listener.follow('app', function (event) {
       if (event.type === 'ready') {
         initialize();
