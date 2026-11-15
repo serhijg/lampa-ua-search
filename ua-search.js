@@ -1,35 +1,27 @@
 
-/*
- * Lampa UA Search 0.7
- * UAKino catalog + 7 filters + direct playback
- * Timeout: 20000 ms
- * Jackett: not required
- */
 (function () {
   'use strict';
 
-  var VERSION = '0.7';
+  var VERSION = '0.7.1';
   var API = 'https://uakino.ax';
   var TIMEOUT = 20000;
-  var PAGE_SIZE = 30;
-  var MAX_PAGES = 5;
 
-  if (window.LampaUASearch07) return;
-  window.LampaUASearch07 = true;
+  if (window.LampaUASearch071) return;
+  window.LampaUASearch071 = true;
 
-  var CATEGORIES = [
+  var categories = [
     ['new', 'Новинки'],
     ['films', 'Фільми'],
     ['series', 'Серіали'],
-    ['multserialy', 'Мультсеріали'],
     ['cartoons', 'Мультфільми'],
-    ['dorama', 'Дорами'],
+    ['multserialy', 'Мультсеріали'],
     ['anime', 'Аніме'],
-    ['4k', 'У 4K'],
+    ['dorama', 'Дорами'],
+    ['4k', '4K'],
     ['top', 'Найкраще']
   ];
 
-  var GENRES = [
+  var genres = [
     ['', 'Усі жанри'],
     [28, 'Бойовик'],
     [12, 'Пригоди'],
@@ -51,7 +43,7 @@
     [37, 'Вестерн']
   ];
 
-  var COUNTRIES = [
+  var countries = [
     ['', 'Усі країни'],
     ['UA', 'Україна'],
     ['US', 'США'],
@@ -68,7 +60,7 @@
     ['TR', 'Туреччина']
   ];
 
-  var TYPES = [
+  var types = [
     ['', 'Усі типи'],
     ['films', 'Фільми'],
     ['series', 'Серіали'],
@@ -78,17 +70,17 @@
     ['dorama', 'Дорами']
   ];
 
-  var QUALITIES = [
+  var qualities = [
     ['', 'Будь-яка'],
     ['2160', '4K / 2160p'],
     ['1080', 'Full HD / 1080p'],
     ['720', 'HD / 720p']
   ];
 
-  var SORTS = [
-    ['default', 'За порядком UAKino'],
-    ['rating_desc', 'Рейтинг: високий спочатку'],
-    ['rating_asc', 'Рейтинг: низький спочатку'],
+  var sorts = [
+    ['default', 'Порядок UAKino'],
+    ['rating_desc', 'Рейтинг: за спаданням'],
+    ['rating_asc', 'Рейтинг: за зростанням'],
     ['year_desc', 'Спочатку нові'],
     ['year_asc', 'Спочатку старі'],
     ['title_asc', 'Назва: А–Я'],
@@ -109,136 +101,128 @@
   };
 
   var filters = {};
-  var catalogCache = {};
+  var cache = {};
   var currentMovie = null;
-  var catalogRequest = 0;
+  var menuStack = [];
+  var playerActive = false;
+  var launching = false;
 
-  function copy(o) {
-    return JSON.parse(JSON.stringify(o));
+  function clone(v) {
+    return JSON.parse(JSON.stringify(v));
   }
 
-  function log() {
-    var a = ['[UA Search ' + VERSION + ']'];
-    for (var i = 0; i < arguments.length; i++) {
-      a.push(arguments[i]);
-    }
-    try {
-      console.log.apply(console, a);
-    } catch (e) {}
-  }
-
-  function notify(s) {
+  function note(s) {
     try {
       Lampa.Noty.show('UA Search: ' + s);
     } catch (e) {
-      log(s);
+      console.log('[UA Search]', s);
     }
   }
 
-  function storageGet(k, def) {
-    try {
-      return Lampa.Storage.get(k, def);
-    } catch (e) {
-      return def;
-    }
-  }
-
-  function storageSet(k, v) {
+  function store(k, v) {
     try {
       Lampa.Storage.set(k, v);
     } catch (e) {}
   }
 
-  function saveFilters() {
-    storageSet('ua_search_filters_07', copy(filters));
+  function load(k, d) {
+    try {
+      return Lampa.Storage.get(k, d);
+    } catch (e) {
+      return d;
+    }
   }
 
-  function loadFilters() {
-    var stored = storageGet('ua_search_filters_07', {});
-    if (!stored || typeof stored !== 'object') stored = {};
+  function readFilters() {
+    filters = clone(defaults);
 
-    filters = copy(defaults);
+    var x = load('ua_search_filters_07', {});
 
-    Object.keys(defaults).forEach(function (k) {
-      if (stored[k] !== undefined) filters[k] = stored[k];
-    });
+    if (x && typeof x === 'object') {
+      Object.keys(defaults).forEach(function (k) {
+        if (x[k] !== undefined) filters[k] = x[k];
+      });
+    }
   }
 
-  loadFilters();
+  function save() {
+    store('ua_search_filters_07', clone(filters));
+  }
 
-  function query(obj) {
-    return Object.keys(obj).filter(function (k) {
-      return obj[k] !== undefined &&
-        obj[k] !== null &&
-        obj[k] !== '';
+  readFilters();
+
+  function qs(o) {
+    return Object.keys(o).filter(function (k) {
+      return o[k] !== undefined &&
+        o[k] !== null &&
+        o[k] !== '';
     }).map(function (k) {
       return encodeURIComponent(k) + '=' +
-        encodeURIComponent(obj[k]);
+        encodeURIComponent(o[k]);
     }).join('&');
   }
 
-  function request(url, asText) {
+  function req(url, text) {
     return new Promise(function (resolve, reject) {
       var xhr = new XMLHttpRequest();
       var done = false;
-      var watchdog;
+      var timer;
 
-      function finish(error, data) {
+      function end(err, val) {
         if (done) return;
         done = true;
-        clearTimeout(watchdog);
+        clearTimeout(timer);
 
-        if (error) reject(error);
-        else resolve(data);
+        if (err) reject(err);
+        else resolve(val);
       }
 
       try {
         xhr.open('GET', url, true);
         xhr.timeout = TIMEOUT;
 
-        watchdog = setTimeout(function () {
-          try { xhr.abort(); } catch (e) {}
-          finish(new Error('Таймаут 20 секунд'));
+        timer = setTimeout(function () {
+          try {
+            xhr.abort();
+          } catch (e) {}
+
+          end(new Error('Таймаут 20 секунд'));
         }, TIMEOUT);
 
         xhr.onload = function () {
           if (xhr.status < 200 || xhr.status >= 300) {
-            finish(new Error('HTTP ' + xhr.status));
-            return;
+            return end(new Error('HTTP ' + xhr.status));
           }
 
-          if (asText) {
-            finish(null, xhr.responseText);
-            return;
-          }
+          if (text) return end(null, xhr.responseText);
 
           try {
-            finish(null, JSON.parse(xhr.responseText));
+            end(null, JSON.parse(xhr.responseText));
           } catch (e) {
-            finish(new Error('Некоректна JSON-відповідь'));
+            end(new Error('Некоректна відповідь JSON'));
           }
         };
 
         xhr.onerror = function () {
-          finish(new Error('Помилка мережі / CORS'));
+          end(new Error('Помилка мережі / CORS'));
         };
 
         xhr.ontimeout = function () {
-          finish(new Error('Таймаут 20 секунд'));
+          end(new Error('Таймаут 20 секунд'));
         };
 
         xhr.send();
       } catch (e) {
-        finish(e);
+        end(e);
       }
     });
   }
 
-  function getJSON(path) {
-    return request(API + path);
+  function get(path) {
+    return req(API + path);
   }
 
-  function loading(on) {
+  function busy(on) {
     try {
       if (on) {
         Lampa.Loading.start(function () {
@@ -250,52 +234,88 @@
     } catch (e) {}
   }
 
-  function back() {
-    try {
-      Lampa.Controller.toggle('full_start');
-    } catch (e) {}
-  }
-
-  function select(title, items, callback, onBack) {
-    Lampa.Select.show({
-      title: title,
-      items: items,
-      onSelect: callback,
-      onBack: onBack || back
-    });
-  }
-
-  function labelOf(arr, value) {
-    for (var i = 0; i < arr.length; i++) {
-      if (String(arr[i][0]) === String(value)) {
-        return arr[i][1];
+  function label(list, v) {
+    for (var i = 0; i < list.length; i++) {
+      if (String(list[i][0]) === String(v)) {
+        return list[i][1];
       }
     }
-    return String(value);
+
+    return String(v);
   }
 
-  function choose(title, options, value, callback, returnTo) {
-    select(title, options.map(function (o) {
-      return {
-        title: o[1],
-        value: o[0],
-        selected: String(o[0]) === String(value)
-      };
-    }), function (item) {
-      callback(item.value);
-      saveFilters();
-      showFilters();
-    }, returnTo || showFilters);
-  }
+  /*
+   * FIX 0.7.1
+   *
+   * Do not force Controller.toggle('full_start').
+   * Let Lampa.Select restore its own controller.
+   */
+  function menu(title, items, onSelect, onBack) {
+    menuStack.push({ title: title });
 
-  function yearOptions() {
-    var out = [[0, 'Без обмеження']];
-    var maxYear = new Date().getFullYear() + 1;
+    var closed = false;
 
-    for (var y = maxYear; y >= 1950; y--) {
-      out.push([y, String(y)]);
+    function pop() {
+      if (closed) return;
+      closed = true;
+      menuStack.pop();
     }
-    return out;
+
+    try {
+      Lampa.Select.show({
+        title: title,
+        items: items,
+
+        onSelect: function (it) {
+          pop();
+          onSelect(it);
+        },
+
+        onBack: function () {
+          pop();
+          if (onBack) onBack();
+        }
+      });
+    } catch (e) {
+      pop();
+      note('Меню: ' + e.message);
+    }
+  }
+
+  function choose(title, arr, value, cb) {
+    menu(
+      title,
+
+      arr.map(function (a) {
+        return {
+          title: a[1],
+          value: a[0],
+          selected: String(a[0]) === String(value)
+        };
+      }),
+
+      function (it) {
+        cb(it.value);
+        save();
+        showFilters();
+      },
+
+      showFilters
+    );
+  }
+
+  function years() {
+    var a = [[0, 'Без обмеження']];
+
+    for (
+      var y = new Date().getFullYear() + 1;
+      y >= 1950;
+      y--
+    ) {
+      a.push([y, String(y)]);
+    }
+
+    return a;
   }
 
   function showFilters() {
@@ -304,7 +324,7 @@
     var items = [
       {
         title: 'Жанр',
-        subtitle: labelOf(GENRES, f.genre),
+        subtitle: label(genres, f.genre),
         key: 'genre'
       },
       {
@@ -319,22 +339,22 @@
       },
       {
         title: 'Тип контенту',
-        subtitle: labelOf(TYPES, f.type),
+        subtitle: label(types, f.type),
         key: 'type'
       },
       {
         title: 'Якість відео',
-        subtitle: labelOf(QUALITIES, f.quality),
+        subtitle: label(qualities, f.quality),
         key: 'quality'
       },
       {
         title: 'Сортування',
-        subtitle: labelOf(SORTS, f.sort),
+        subtitle: label(sorts, f.sort),
         key: 'sort'
       },
       {
         title: 'Країна виробництва',
-        subtitle: labelOf(COUNTRIES, f.country),
+        subtitle: label(countries, f.country),
         key: 'country'
       },
       {
@@ -344,7 +364,7 @@
       },
       {
         title: 'Категорія UAKino',
-        subtitle: labelOf(CATEGORIES, f.category),
+        subtitle: label(categories, f.category),
         key: 'category'
       },
       {
@@ -354,156 +374,157 @@
       },
       {
         title: 'Застосувати фільтри',
-        subtitle: 'Показати каталог',
         action: 'apply'
       },
       {
-        title: 'Скинути всі фільтри',
+        title: 'Скинути фільтри',
         action: 'reset'
       }
     ];
 
-    select('UA Search 0.7 · Фільтри', items, function (it) {
-      if (it.action === 'apply') {
-        return showCatalog();
-      }
+    menu(
+      'UA Search 0.7.1 · Фільтри',
+      items,
 
-      if (it.action === 'reset') {
-        filters = copy(defaults);
-        saveFilters();
-        notify('Фільтри скинуто');
-        return showFilters();
-      }
+      function (it) {
+        if (it.action === 'apply') {
+          return showCatalog();
+        }
 
-      var key = it.key;
-      var opts;
+        if (it.action === 'reset') {
+          filters = clone(defaults);
+          save();
+          return showFilters();
+        }
 
-      if (key === 'genre') opts = GENRES;
-      else if (key === 'type') opts = TYPES;
-      else if (key === 'quality') opts = QUALITIES;
-      else if (key === 'sort') opts = SORTS;
-      else if (key === 'country') opts = COUNTRIES;
-      else if (key === 'category') opts = CATEGORIES;
-      else if (key === 'yearFrom' || key === 'yearTo') {
-        opts = yearOptions();
-      } else if (key === 'rating') {
-        opts = [
-          [0, 'Будь-який'],
-          [5, '5+'],
-          [6, '6+'],
-          [7, '7+'],
-          [7.5, '7.5+'],
-          [8, '8+'],
-          [8.5, '8.5+'],
-          [9, '9+']
-        ];
-      } else if (key === 'pages') {
-        opts = [
-          [1, '30 фільмів'],
-          [2, '60 фільмів'],
-          [3, '90 фільмів'],
-          [5, '150 фільмів']
-        ];
-      }
+        var k = it.key;
 
-      if (!opts) return;
+        var opts = {
+          genre: genres,
+          type: types,
+          quality: qualities,
+          sort: sorts,
+          country: countries,
+          category: categories,
+          yearFrom: years(),
+          yearTo: years(),
 
-      choose(it.title, opts, f[key], function (v) {
-        filters[key] = v;
-      });
-    }, function () {
-      showMainMenu();
-    });
+          rating: [
+            [0, 'Будь-який'],
+            [5, '5+'],
+            [6, '6+'],
+            [7, '7+'],
+            [7.5, '7.5+'],
+            [8, '8+'],
+            [8.5, '8.5+'],
+            [9, '9+']
+          ],
+
+          pages: [
+            [1, '30 записів'],
+            [2, '60 записів'],
+            [3, '90 записів'],
+            [5, '150 записів']
+          ]
+        };
+
+        if (opts[k]) {
+          choose(it.title, opts[k], f[k], function (v) {
+            filters[k] = v;
+          });
+        }
+      },
+
+      showMain
+    );
   }
 
-  function normalize(item) {
-    var x = copy(item);
+  function normalize(it) {
+    var x = clone(it);
 
     x.title = x.title || x.name || '';
+
     x.year = parseInt(
       x.year || x.release_date || x.first_air_date,
       10
     ) || 0;
 
     var r = x.rating;
+
     if (r === undefined || r === null) {
       r = x.vote_average;
     }
 
-    x._rating = (r === undefined || r === null || r === '')
-      ? null : Number(r);
+    x._rating =
+      r === undefined || r === null || r === ''
+        ? null
+        : Number(r);
 
     if (!isFinite(x._rating)) x._rating = null;
 
     x._genres = x.genre_ids || x.genres || [];
-    x._countries = x.production_countries ||
-      x.origin_country || x.countries || [];
+
+    x._countries =
+      x.production_countries ||
+      x.origin_country ||
+      x.countries ||
+      [];
 
     x._quality = x.quality || x.video_quality || '';
 
     return x;
   }
 
-  function genreMatch(item, genre) {
-    if (!genre) return true;
+  function genreOK(x, v) {
+    if (!v) return true;
+    if (!Array.isArray(x._genres)) return false;
 
-    var list = item._genres;
-
-    if (!Array.isArray(list) || !list.length) return false;
-
-    return list.some(function (g) {
+    return x._genres.some(function (g) {
       var id = typeof g === 'object' ? g.id : g;
-      var name = typeof g === 'object' ? g.name : g;
-      return String(id) === String(genre) ||
-        String(name).toLowerCase() ===
-        labelOf(GENRES, genre).toLowerCase();
+      var n = typeof g === 'object' ? g.name : g;
+
+      return String(id) === String(v) ||
+        String(n).toLowerCase() ===
+        label(genres, v).toLowerCase();
     });
   }
 
-  function countryMatch(item, country) {
-    if (!country) return true;
+  function countryOK(x, v) {
+    if (!v) return true;
+    if (!Array.isArray(x._countries)) return false;
 
-    var list = item._countries;
-    if (!Array.isArray(list) || !list.length) return false;
-
-    return list.some(function (c) {
-      var code = typeof c === 'object'
+    return x._countries.some(function (c) {
+      var s = typeof c === 'object'
         ? (c.iso_3166_1 || c.code || c.name)
         : c;
 
-      return String(code).toUpperCase() === country ||
-        String(code).toLowerCase() ===
-        labelOf(COUNTRIES, country).toLowerCase();
+      return String(s).toUpperCase() === v ||
+        String(s).toLowerCase() ===
+        label(countries, v).toLowerCase();
     });
   }
 
-  function qualityMatch(item, quality) {
-    if (!quality) return true;
+  function qualityOK(x, v) {
+    if (!v) return true;
 
-    var q = String(item._quality).toLowerCase();
+    var s = String(x._quality).toLowerCase();
 
-    if (!q) return false;
+    if (v === '2160') return /2160|4k|uhd/.test(s);
+    if (v === '1080') return /1080|fhd|full.?hd/.test(s);
 
-    if (quality === '2160') {
-      return /2160|4k|uhd/.test(q);
-    }
-    if (quality === '1080') {
-      return /1080|fhd|full.?hd/.test(q);
-    }
-    if (quality === '720') {
-      return /720|(^|[^a-z])hd([^a-z]|$)/.test(q);
+    if (v === '720') {
+      return /720|(^|[^a-z])hd([^a-z]|$)/.test(s);
     }
 
     return false;
   }
 
-  function typeMatch(item, type, category) {
-    if (!type) return true;
-
-    if (category === type) return true;
+  function typeOK(x, v, cat) {
+    if (!v) return true;
+    if (v === cat) return true;
 
     var raw = String(
-      item.type || item.category || item.content_type || ''
+      x.type || x.category || x.content_type || ''
     ).toLowerCase();
 
     var aliases = {
@@ -515,66 +536,62 @@
       dorama: ['dorama']
     };
 
-    if (aliases[type] && aliases[type].indexOf(raw) >= 0) {
-      return true;
-    }
-
-    if (type === 'series' && item.is_series === true) {
-      return true;
-    }
-
-    if (type === 'films' && item.is_series === false) {
-      return true;
-    }
-
-    return false;
+    return (aliases[v] || []).indexOf(raw) >= 0 ||
+      (v === 'series' && x.is_series === true) ||
+      (v === 'films' && x.is_series === false);
   }
 
-  function applyFilters(items, category) {
+  function filtered(items, cat) {
     var f = filters;
 
     var out = items.map(normalize).filter(function (x) {
-      if (f.yearFrom && (!x.year || x.year < f.yearFrom)) {
-        return false;
-      }
+      return (
+        (!f.yearFrom ||
+          (x.year && x.year >= f.yearFrom)) &&
 
-      if (f.yearTo && (!x.year || x.year > f.yearTo)) {
-        return false;
-      }
+        (!f.yearTo ||
+          (x.year && x.year <= f.yearTo)) &&
 
-      if (!typeMatch(x, f.type, category)) return false;
-      if (!genreMatch(x, f.genre)) return false;
-      if (!countryMatch(x, f.country)) return false;
-      if (!qualityMatch(x, f.quality)) return false;
+        typeOK(x, f.type, cat) &&
+        genreOK(x, f.genre) &&
+        countryOK(x, f.country) &&
+        qualityOK(x, f.quality) &&
 
-      if (f.rating &&
-          (x._rating === null || x._rating < f.rating)) {
-        return false;
-      }
-
-      return true;
+        (!f.rating ||
+          (x._rating !== null &&
+            x._rating >= f.rating))
+      );
     });
 
-    var sort = f.sort;
+    var s = f.sort;
 
-    if (sort !== 'default') {
+    if (s !== 'default') {
       out.sort(function (a, b) {
-        if (sort === 'rating_desc') {
-          return (b._rating === null ? -1 : b._rating) -
-                 (a._rating === null ? -1 : a._rating);
+        if (s === 'rating_desc') {
+          return (
+            (b._rating === null ? -1 : b._rating) -
+            (a._rating === null ? -1 : a._rating)
+          );
         }
-        if (sort === 'rating_asc') {
-          return (a._rating === null ? 99 : a._rating) -
-                 (b._rating === null ? 99 : b._rating);
+
+        if (s === 'rating_asc') {
+          return (
+            (a._rating === null ? 99 : a._rating) -
+            (b._rating === null ? 99 : b._rating)
+          );
         }
-        if (sort === 'year_desc') return b.year - a.year;
-        if (sort === 'year_asc') return a.year - b.year;
-        if (sort === 'title_asc') {
+
+        if (s === 'year_desc') return b.year - a.year;
+        if (s === 'year_asc') return a.year - b.year;
+
+        if (s === 'title_asc') {
           return a.title.localeCompare(b.title, 'uk');
         }
-        if (sort === 'title_desc') {
+
+        if (s === 'title_desc') {
           return b.title.localeCompare(a.title, 'uk');
         }
+
         return 0;
       });
     }
@@ -583,152 +600,136 @@
   }
 
   function list(cat, page) {
-    var key = cat + ':' + page;
-    var cached = catalogCache[key];
+    var k = cat + ':' + page;
+    var c = cache[k];
 
-    if (cached && Date.now() - cached.time < 120000) {
-      return Promise.resolve(cached.data);
+    if (c && Date.now() - c.time < 120000) {
+      return Promise.resolve(c.data);
     }
 
-    return getJSON('/hls/api/lampa/list?' + query({
-      cat: cat,
-      page: page,
-      limit: PAGE_SIZE
-    })).then(function (data) {
-      if (!data || !Array.isArray(data.results)) {
+    return get(
+      '/hls/api/lampa/list?' +
+      qs({
+        cat: cat,
+        page: page,
+        limit: 30
+      })
+    ).then(function (d) {
+      if (!d || !Array.isArray(d.results)) {
         throw new Error('Невідомий формат каталогу');
       }
 
-      catalogCache[key] = {
+      cache[k] = {
         time: Date.now(),
-        data: data
+        data: d
       };
 
-      return data;
-    });
-  }
-
-  function loadCatalog(cat, pages) {
-    var all = [];
-    var totalPages = pages;
-
-    function next(page) {
-      if (page > totalPages) {
-        return Promise.resolve(all);
-      }
-
-      return list(cat, page).then(function (data) {
-        all = all.concat(data.results);
-
-        if (data.total_pages) {
-          totalPages = Math.min(
-            totalPages,
-            Number(data.total_pages) || totalPages
-          );
-        }
-
-        return next(page + 1);
-      });
-    }
-
-    return next(1);
-  }
-
-  function deduplicate(items) {
-    var seen = {};
-
-    return items.filter(function (x) {
-      var key = String(
-        x.uakino_id || x.id ||
-        (x.title + ':' + x.year)
-      );
-
-      if (seen[key]) return false;
-      seen[key] = true;
-      return true;
+      return d;
     });
   }
 
   function showCatalog() {
-    var req = ++catalogRequest;
-    var category = filters.type || filters.category;
-    var pages = Math.max(
-      1,
-      Math.min(MAX_PAGES, Number(filters.pages) || 3)
+    var cat = filters.type || filters.category;
+
+    var max = Math.min(
+      5,
+      Math.max(1, Number(filters.pages) || 3)
     );
 
-    loading(true);
+    var all = [];
 
-    loadCatalog(category, pages).then(function (items) {
-      if (req !== catalogRequest) return;
+    busy(true);
 
-      loading(false);
+    function next(p) {
+      if (p > max) return Promise.resolve(all);
 
-      var unique = deduplicate(items);
-      var results = applyFilters(unique, category);
+      return list(cat, p).then(function (d) {
+        all = all.concat(d.results);
 
-      log('Catalog:', {
-        category: category,
-        loaded: unique.length,
-        matched: results.length
-      });
+        if (d.total_pages) {
+          max = Math.min(
+            max,
+            Number(d.total_pages) || max
+          );
+        }
 
-      showCatalogResults(results, unique.length, category);
-    }).catch(function (e) {
-      if (req !== catalogRequest) return;
-      loading(false);
-      notify('Каталог: ' + e.message);
-    });
-  }
-
-  function showCatalogResults(results, total, category) {
-    var items = [
-      {
-        title: '⚙ Змінити фільтри',
-        subtitle: 'Знайдено ' + results.length +
-          ' із ' + total + ' завантажених',
-        action: 'filters'
-      }
-    ];
-
-    results.forEach(function (x) {
-      var meta = [];
-
-      if (x.year) meta.push(String(x.year));
-      if (x._rating !== null) {
-        meta.push('★ ' + x._rating.toFixed(1));
-      }
-      if (x._quality) meta.push(String(x._quality));
-
-      items.push({
-        title: x.title,
-        subtitle: meta.join(' · '),
-        movie: x
-      });
-    });
-
-    if (!results.length) {
-      items.push({
-        title: 'Нічого не знайдено',
-        subtitle: 'Спробуй змінити фільтри',
-        action: 'filters'
+        return next(p + 1);
       });
     }
 
-    select(
-      'UAKino · ' + results.length + ' результатів',
-      items,
-      function (it) {
-        if (it.action === 'filters') {
-          return showFilters();
+    next(1).then(function (a) {
+      busy(false);
+
+      var seen = {};
+
+      a = a.filter(function (x) {
+        var id = String(
+          x.uakino_id ||
+          x.id ||
+          (x.title + ':' + x.year)
+        );
+
+        if (seen[id]) return false;
+
+        seen[id] = true;
+        return true;
+      });
+
+      var found = filtered(a, cat);
+
+      var rows = [{
+        title: '⚙ Змінити фільтри',
+        subtitle: found.length + ' із ' + a.length,
+        action: 'filters'
+      }];
+
+      found.forEach(function (x) {
+        var meta = [];
+
+        if (x.year) meta.push(String(x.year));
+
+        if (x._rating !== null) {
+          meta.push('★ ' + x._rating.toFixed(1));
         }
 
-        if (it.movie) {
-          openCatalogMovie(it.movie);
+        if (x._quality) {
+          meta.push(String(x._quality));
         }
-      },
-      showFilters
-    );
+
+        rows.push({
+          title: x.title,
+          subtitle: meta.join(' · '),
+          movie: x
+        });
+      });
+
+      if (!found.length) {
+        rows.push({
+          title: 'Немає результатів',
+          action: 'filters'
+        });
+      }
+
+      menu(
+        'UAKino · ' + found.length + ' результатів',
+        rows,
+
+        function (it) {
+          if (it.action === 'filters') {
+            return showFilters();
+          }
+
+          if (it.movie) {
+            openCatalogMovie(it.movie);
+          }
+        },
+
+        showFilters
+      );
+    }).catch(function (e) {
+      busy(false);
+      note('Каталог: ' + e.message);
+    });
   }
 
   function openCatalogMovie(x) {
@@ -738,142 +739,141 @@
       name: x.is_series ? x.title : undefined,
       original_title: x.original || x.original_title,
       original_name: x.original || x.original_name,
-      release_date: x.year ? String(x.year) + '-01-01' : '',
-      first_air_date: x.is_series && x.year
+
+      release_date: x.year
         ? String(x.year) + '-01-01'
         : '',
-      uakino_id: x.uakino_id
+
+      first_air_date: x.is_series && x.year
+        ? String(x.year) + '-01-01'
+        : ''
     };
 
-    currentMovie = movie;
     searchMovie(movie);
   }
 
-  function findMovie(movie) {
-    var isTV = !!(
-      movie.name ||
-      movie.first_air_date ||
-      movie.number_of_seasons
+  function findMovie(m) {
+    var tv = !!(
+      m.name ||
+      m.first_air_date ||
+      m.number_of_seasons
     );
 
-    var title = movie.title || movie.name || '';
-    var original = movie.original_title ||
-      movie.original_name || '';
+    return get(
+      '/hls/api/lampa/find?' +
+      qs({
+        tmdb: m.id,
+        imdb: m.imdb_id,
+        type: tv ? 'tv' : 'movie',
 
-    var date = movie.release_date ||
-      movie.first_air_date || '';
+        year: String(
+          m.release_date || m.first_air_date || ''
+        ).slice(0, 4),
 
-    return getJSON('/hls/api/lampa/find?' + query({
-      tmdb: movie.id,
-      imdb: movie.imdb_id,
-      type: isTV ? 'tv' : 'movie',
-      year: date.slice(0, 4),
-      title: title,
-      orig: original
-    })).then(function (data) {
+        title: m.title || m.name || '',
+        orig: m.original_title || m.original_name || ''
+      })
+    ).then(function (d) {
       return {
-        found: !!(data && data.found && data.movie_id),
-        title: data.title || title,
-        movie_id: data.movie_id,
-        data: data
+        found: !!(d && d.found && d.movie_id),
+        title: d.title || m.title || m.name,
+        movie_id: d.movie_id
       };
     });
   }
 
-  function playInfo(movieId, opts) {
-    opts = opts || {};
-
-    return getJSON('/hls/api/play?' + query({
-      movie: movieId,
-      s: sessionId(),
-      hevc: hevc(),
-      voice: opts.voice,
-      season: opts.season,
-      episode: opts.episode,
-      q: opts.q
-    }));
-  }
-
-  function sessionId() {
-    var s = storageGet('ua_search_sid_07', '');
+  function sid() {
+    var s = load('ua_search_sid_07', '');
 
     if (!s) {
-      s = 'ua' + Math.random().toString(36).slice(2) +
+      s = 'ua' +
+        Math.random().toString(36).slice(2) +
         Date.now().toString(36);
-      storageSet('ua_search_sid_07', s);
+
+      store('ua_search_sid_07', s);
     }
 
     return s;
   }
 
-  function hevc() {
-    try {
-      if (Lampa.Platform.is('android')) return 1;
+  function playInfo(id, o) {
+    o = o || {};
 
-      var codec = 'video/mp4; codecs="hvc1.1.6.L153.90"';
-
-      if (window.MediaSource &&
-          MediaSource.isTypeSupported &&
-          MediaSource.isTypeSupported(codec)) return 1;
-
-      if (document.createElement('video').canPlayType(codec)) {
-        return 1;
-      }
-    } catch (e) {}
-
-    return 0;
+    return get(
+      '/hls/api/play?' +
+      qs({
+        movie: id,
+        s: sid(),
+        hevc: 0,
+        voice: o.voice,
+        season: o.season,
+        episode: o.episode,
+        q: o.q
+      })
+    );
   }
 
-  function absolute(url) {
-    if (!url) return '';
-    if (/^https?:\/\//i.test(url)) return url;
-    if (url.indexOf('//') === 0) {
-      return 'https:' + url;
+  function absolute(u) {
+    if (!u) return '';
+
+    if (/^https?:\/\//i.test(u)) return u;
+
+    if (u.slice(0, 2) === '//') {
+      return 'https:' + u;
     }
-    return API + (url.charAt(0) === '/' ? '' : '/') + url;
+
+    return API + (u.charAt(0) === '/' ? '' : '/') + u;
   }
 
-  function manifestOf(p) {
-    return absolute(p.manifest || p.manifest_abs || '');
+  function manifest(p) {
+    var u = absolute(
+      p.manifest || p.manifest_abs || ''
+    );
+
+    if (u && !/\.m3u8($|\?)/i.test(u)) {
+      u += '.m3u8';
+    }
+
+    return u;
   }
 
-  function m3u8(url) {
-    if (!url) return '';
+  function variants(url) {
+    if (!url) return Promise.resolve([]);
 
-    return /\.m3u8($|\?)/i.test(url)
-      ? url : url + '.m3u8';
-  }
-
-  function variants(master) {
-    if (!master) return Promise.resolve([]);
-
-    return request(master, true).then(function (text) {
-      var lines = text.split(/\r?\n/);
+    return req(url, true).then(function (t) {
+      var a = t.split(/\r?\n/);
       var out = [];
       var seen = {};
 
-      for (var i = 0; i < lines.length; i++) {
-        if (lines[i].indexOf('#EXT-X-STREAM-INF') !== 0) {
+      for (var i = 0; i < a.length; i++) {
+        if (
+          a[i].indexOf('#EXT-X-STREAM-INF') !== 0
+        ) {
           continue;
         }
 
-        var m = /RESOLUTION=(\d+)x(\d+)/.exec(lines[i]);
-        var u = (lines[i + 1] || '').trim();
+        var m = /RESOLUTION=\d+x(\d+)/.exec(a[i]);
+        var u = (a[i + 1] || '').trim();
 
-        if (!m || !u || u.charAt(0) === '#') continue;
+        if (!m || !u || u.charAt(0) === '#') {
+          continue;
+        }
 
-        var h = Number(m[2]);
-        var tier = h >= 1500 ? 2160 :
+        var h = Number(m[1]);
+
+        var tier =
+          h >= 1500 ? 2160 :
           h >= 1000 ? 1080 :
           h >= 680 ? 720 : 480;
 
         if (seen[tier]) continue;
+
         seen[tier] = true;
 
         var resolved;
 
         try {
-          resolved = new URL(u, master).href;
+          resolved = new URL(u, url).href;
         } catch (e) {
           resolved = absolute(u);
         }
@@ -890,34 +890,43 @@
     });
   }
 
-  function launchPlayer(p, title, selected, vars, meta) {
-    var master = m3u8(manifestOf(p));
+  /*
+   * FIX: Direct player launch.
+   * No "uakino" property in the player item.
+   * No forced controller switching.
+   */
+  function playVideo(p, title, selected, vars) {
+    var master = manifest(p);
 
     if (!master) {
-      notify('Сервер не повернув адресу відео');
-      return;
+      return note('Сервер не повернув відеопотік');
     }
 
     var url = master;
-    var qualityMap = { 'Авто': master };
+    var quality = { 'Авто': master };
 
     vars.forEach(function (v) {
-      qualityMap[String(v.tier) + 'p'] = v.url;
-      if (Number(selected) === v.tier) url = v.url;
+      quality[v.tier + 'p'] = v.url;
+
+      if (Number(selected) === v.tier) {
+        url = v.url;
+      }
     });
 
     var item = {
       title: title,
       url: url,
-      hls_type: 'hlsjs',
-      uakino: meta
+      hls_type: 'hlsjs'
     };
 
     if (vars.length > 1) {
-      item.quality = qualityMap;
+      item.quality = quality;
     }
 
-    if (p.subs && p.subs.length) {
+    if (
+      Array.isArray(p.subs) &&
+      p.subs.length
+    ) {
       item.subtitles = p.subs.map(function (s) {
         return {
           label: s.label,
@@ -927,419 +936,68 @@
     }
 
     try {
+      launching = true;
+      playerActive = true;
+
       Lampa.Player.play(item);
       Lampa.Player.playlist([item]);
     } catch (e) {
-      notify('Плеєр: ' + e.message);
+      playerActive = false;
+      note('Плеєр: ' + e.message);
+    } finally {
+      launching = false;
     }
   }
 
-  function showQuality(ctx) {
-    var items = [{
+  function qualityMenu(ctx) {
+    var rows = [{
       title: 'Авто',
-      subtitle: 'Автоматична якість',
       tier: 0
     }];
 
     ctx.vars.forEach(function (v) {
-      items.push({
+      rows.push({
         title: v.tier + 'p',
-        subtitle: 'Відтворити у вибраній якості',
         tier: v.tier
       });
     });
 
-    if (ctx.p.alt4k && hevc()) {
-      items.push({
-        title: '4K · окремий потік',
-        tier: 2160,
-        special4k: true
-      });
-    }
-
-    if (ctx.p.voices && ctx.p.voices.length > 1) {
-      items.push({
+    if (
+      Array.isArray(ctx.p.voices) &&
+      ctx.p.voices.length > 1
+    ) {
+      rows.push({
         title: 'Змінити озвучку',
-        subtitle: ctx.voice || 'Українська',
-        action: 'voices'
+        subtitle: String(ctx.voice || ''),
+        action: 'voice'
       });
     }
 
-    items.push({
-      title: 'Відкрити через офіційний UAKino',
+    rows.push({
+      title: 'Офіційний UAKino',
       action: 'official'
     });
 
-    select('Якість і озвучка', items, function (it) {
-      if (it.action === 'official') {
-        return openOfficial();
-      }
+    menu(
+      'Якість · ' + ctx.title,
+      rows,
 
-      if (it.action === 'voices') {
-        return showVoices(ctx);
-      }
+      function (it) {
+        if (it.action === 'voice') {
+          return voiceMenu(ctx);
+        }
 
-      if (it.special4k) {
-        loading(true);
-        return playInfo(ctx.id, {
-          voice: ctx.voice,
-          q: '2160'
-        }).then(function (p) {
-          loading(false);
-          launchPlayer(p, ctx.title + ' · 4K', 0, [], {
-            movie: ctx.id,
-            voice: ctx.voice
-          });
-        }).catch(function (e) {
-          loading(false);
-          notify(e.message);
-        });
-      }
+        if (it.action === 'official') {
+          return official();
+        }
 
-      launchPlayer(ctx.p, ctx.title, it.tier, ctx.vars, {
-        movie: ctx.id,
-        voice: ctx.voice
-      });
-    });
-  }
-
-  function showVoices(ctx) {
-    select('Озвучка', ctx.p.voices.map(function (v) {
-      return {
-        title: v,
-        voice: v,
-        selected: v === ctx.voice
-      };
-    }), function (it) {
-      loading(true);
-
-      playInfo(ctx.id, {
-        voice: it.voice
-      }).then(function (p) {
-        return variants(m3u8(manifestOf(p))).then(function (v) {
-          loading(false);
-          ctx.p = p;
-          ctx.vars = v;
-          ctx.voice = it.voice;
-          showQuality(ctx);
-        });
-      }).catch(function (e) {
-        loading(false);
-        notify(e.message);
-      });
-    }, function () {
-      showQuality(ctx);
-    });
-  }
-
-  function showEpisodes(ctx) {
-    var episodes = ctx.p.episodes || [];
-
-    if (!episodes.length) {
-      notify('Список серій недоступний');
-      return;
-    }
-
-    var items = episodes.map(function (e) {
-      return {
-        title: 'Сезон ' + e.season +
-          ' · Серія ' + e.episode,
-        subtitle: e.voice || '',
-        episode: e
-      };
-    });
-
-    select('Серії · ' + ctx.title, items, function (it) {
-      var e = it.episode;
-      loading(true);
-
-      playInfo(ctx.id, {
-        voice: e.voice,
-        season: e.season,
-        episode: e.episode
-      }).then(function (p) {
-        loading(false);
-        launchPlayer(
-          p,
-          ctx.title + ' · S' + e.season + 'E' + e.episode,
-          0,
-          [],
-          {
-            movie: ctx.id,
-            voice: e.voice,
-            season: e.season,
-            episode: e.episode
-          }
+        playVideo(
+          ctx.p,
+          ctx.title,
+          it.tier,
+          ctx.vars
         );
-      }).catch(function (err) {
-        loading(false);
-        notify(err.message);
-      });
-    });
-  }
-
-  function openOfficial() {
-    var button = document.querySelector(
-      '.view--uakino:not(.view--ua-search)'
-    );
-
-    if (button) {
-      try {
-        $(button).trigger('hover:enter');
-        return;
-      } catch (e) {}
-    }
-
-    notify('Офіційна кнопка UAKino недоступна');
-  }
-
-  function openFound(movie, result) {
-    loading(true);
-
-    playInfo(result.movie_id, {}).then(function (p) {
-      loading(false);
-
-      var title = movie.title || movie.name ||
-        result.title || 'UAKino';
-
-      var ctx = {
-        id: result.movie_id,
-        title: title,
-        p: p,
-        voice: (p.current && p.current.voice) ||
-          (p.voices && p.voices[0]) || null,
-        vars: []
-      };
-
-      var isTV = !!(
-        movie.name ||
-        movie.first_air_date ||
-        movie.number_of_seasons
-      );
-
-      if (isTV && p.episodes && p.episodes.length) {
-        return showEpisodes(ctx);
-      }
-
-      return variants(m3u8(manifestOf(p))).then(function (v) {
-        ctx.vars = v;
-        showQuality(ctx);
-      });
-    }).catch(function (e) {
-      loading(false);
-      notify('Відтворення: ' + e.message);
-    });
-  }
-
-  function searchMovie(movie) {
-    currentMovie = movie;
-    loading(true);
-
-    findMovie(movie).then(function (result) {
-      loading(false);
-
-      var items = [{
-        title: 'UAKino',
-        subtitle: result.found
-          ? 'Знайдено: ' + result.title
-          : 'Фільм не знайдено',
-        result: result
-      }, {
-        title: 'Toloka',
-        subtitle: 'Пошук поки недоступний без авторизації',
-        action: 'toloka'
-      }, {
-        title: '⚙ Каталог і фільтри',
-        action: 'filters'
-      }];
-
-      select('UA Search 0.7', items, function (it) {
-        if (it.action === 'filters') {
-          return showFilters();
-        }
-
-        if (it.action === 'toloka') {
-          notify('Toloka: потрібен авторизований доступ');
-          return;
-        }
-
-        if (it.result && it.result.found) {
-          openFound(movie, it.result);
-        } else {
-          notify('Фільм не знайдено на UAKino');
-        }
-      });
-    }).catch(function (e) {
-      loading(false);
-      notify('UAKino: ' + e.message);
-    });
-  }
-
-  function showMainMenu() {
-    select('UA Search 0.7', [
-      {
-        title: 'Каталог UAKino',
-        subtitle: 'Переглянути фільми',
-        action: 'catalog'
       },
-      {
-        title: 'Фільтри',
-        subtitle: '7 параметрів фільтрації',
-        action: 'filters'
-      },
-      {
-        title: 'Тест UAKino API',
-        action: 'test'
-      },
-      {
-        title: 'Очистити кеш',
-        action: 'clear'
-      }
-    ], function (it) {
-      if (it.action === 'catalog') showCatalog();
-      if (it.action === 'filters') showFilters();
-      if (it.action === 'test') testAPI();
 
-      if (it.action === 'clear') {
-        catalogCache = {};
-        notify('Кеш очищено');
-      }
-    });
-  }
-
-  function testAPI() {
-    loading(true);
-
-    list('new', 1).then(function (d) {
-      loading(false);
-      notify('API працює · ' + d.results.length +
-        ' записів на сторінці');
-    }).catch(function (e) {
-      loading(false);
-      notify('API: ' + e.message);
-    });
-  }
-
-  function addButton(e) {
-    if (!e || !e.object || !e.data || !e.data.movie) {
-      return;
-    }
-
-    var render = e.object.activity.render();
-
-    if (render.find('.view--ua-search').length) {
-      return;
-    }
-
-    var btn = $(
-      '<div class="full-start__button selector view--ua-search">' +
-      '<span>UA Search 0.7</span>' +
-      '</div>'
-    );
-
-    btn.on('hover:enter', function () {
-      searchMovie(e.data.movie);
-    });
-
-    var anchor = render.find('.view--torrent');
-
-    if (anchor.length) {
-      anchor.after(btn);
-    } else {
-      render.find(
-        '.full-start-new__buttons, .full-start__buttons'
-      ).first().append(btn);
-    }
-  }
-
-  function registerSettings() {
-    try {
-      if (!Lampa.SettingsApi ||
-          !Lampa.SettingsApi.addParam) return;
-
-      Lampa.SettingsApi.addParam({
-        component: 'interface',
-        param: {
-          name: 'ua_search_filters_07_open',
-          type: 'trigger',
-          default: false
-        },
-        field: {
-          name: 'UA Search 0.7 · Фільтри',
-          description: 'Жанр, рік, тип, якість, країна, рейтинг'
-        },
-        onChange: showFilters
-      });
-
-      Lampa.SettingsApi.addParam({
-        component: 'interface',
-        param: {
-          name: 'ua_search_catalog_07_open',
-          type: 'trigger',
-          default: false
-        },
-        field: {
-          name: 'UA Search 0.7 · Каталог',
-          description: 'Відкрити каталог UAKino'
-        },
-        onChange: showCatalog
-      });
-
-      Lampa.SettingsApi.addParam({
-        component: 'interface',
-        param: {
-          name: 'ua_search_test_07_open',
-          type: 'trigger',
-          default: false
-        },
-        field: {
-          name: 'UA Search 0.7 · Тест API',
-          description: 'Перевірка з’єднання з UAKino'
-        },
-        onChange: testAPI
-      });
-    } catch (e) {
-      log('Settings:', e.message);
-    }
-  }
-
-  function init() {
-    if (!window.Lampa ||
-        !Lampa.Listener ||
-        !Lampa.Select ||
-        !Lampa.Storage) {
-      setTimeout(init, 500);
-      return;
-    }
-
-    Lampa.Listener.follow('full', function (e) {
-      if (e.type === 'complite') {
-        try {
-          addButton(e);
-        } catch (err) {
-          log('Button:', err);
-        }
-      }
-    });
-
-    registerSettings();
-
-    window.LampaUASearch = {
-      version: VERSION,
-      filters: filters,
-      openFilters: showFilters,
-      catalog: showCatalog,
-      search: searchMovie,
-      test: testAPI,
-      reset: function () {
-        filters = copy(defaults);
-        saveFilters();
-      }
-    };
-
-    log('Initialized');
-    notify('Версія 0.7 завантажена');
-  }
-
-  init();
-})();
+      function () {
+        // Lampa.Select
