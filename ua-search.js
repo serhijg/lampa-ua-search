@@ -2,11 +2,11 @@
 (function () {
 'use strict';
 
-if (window.UA_SEARCH_114) return;
-window.UA_SEARCH_114 = true;
+if (window.UA_SEARCH_115) return;
+window.UA_SEARCH_115 = true;
 
 var API = 'https://uakino.ax';
-var COMPONENT = 'ua_search_114';
+var COMPONENT = 'ua_search_115';
 var LIMIT = 60;
 var MAX_PAGES = 30;
 
@@ -313,7 +313,7 @@ function controllerName() {
 }
 
 function menuElement() {
- return $('.menu [data-uas114="menu"]').first();
+ return $('.menu [data-uas115="menu"]').first();
 }
 
 function focusMenu() {
@@ -850,24 +850,24 @@ function Page(o) {
 
  function makeCard(it) {
   var el=$(
-   '<div class="uas114-card selector">'+
-    '<div class="uas114-poster"></div>'+
-    '<div class="uas114-name"></div>'+
-    '<div class="uas114-meta"></div>'+
+   '<div class="uas115-card selector">'+
+    '<div class="uas115-poster"></div>'+
+    '<div class="uas115-name"></div>'+
+    '<div class="uas115-meta"></div>'+
    '</div>'
   );
 
   var p=posterUrl(it);
 
   if(p) {
-   el.find('.uas114-poster').css(
+   el.find('.uas115-poster').css(
     'background-image',
     'url("'+p.replace(/"/g,'%22')+'")'
    );
   }
 
-  el.find('.uas114-name').text(titleOf(it));
-  el.find('.uas114-meta').text(metadata(it));
+  el.find('.uas115-name').text(titleOf(it));
+  el.find('.uas115-meta').text(metadata(it));
 
   el.on('hover:enter',function() {
    openDetails(it);
@@ -897,7 +897,7 @@ function Page(o) {
 
   if(!visibleItems.length) {
    body.append(
-    $('<div class="uas114-empty"></div>')
+    $('<div class="uas115-empty"></div>')
      .text(
       loading ?
       'Завантаження…' :
@@ -909,7 +909,7 @@ function Page(o) {
    return;
   }
 
-  var grid=$('<div class="uas114-grid"></div>');
+  var grid=$('<div class="uas115-grid"></div>');
 
   visibleItems.forEach(function(it,index) {
    var el=makeCard(it);
@@ -1094,7 +1094,7 @@ function Page(o) {
    ['sort','Сортування: '+names[settings.sort]],
    ['reset','Скинути']
   ].forEach(function(pair){
-   var el=$('<div class="uas114-filter selector"></div>').text(pair[1]);
+   var el=$('<div class="uas115-filter selector"></div>').text(pair[1]);
    el.on('hover:enter',function(){filterAction(pair[0]);});
    el.on('hover:focus',function(){zone='filters';filterCursor=filters.indexOf(el[0]);});
    filterBar.append(el);
@@ -1102,7 +1102,7 @@ function Page(o) {
   });
  }
  function addDetailControl(label,fn){
-  var el=$('<div class="uas114-action selector"></div>').text(label);
+  var el=$('<div class="uas115-action selector"></div>').text(label);
   el.on('hover:enter',fn);
   el.on('hover:focus',function(){zone='detail';detailCursor=detailControls.indexOf(el[0]);});
   detail.append(el);
@@ -1112,25 +1112,25 @@ function Page(o) {
   if(destroyed||view!=='detail'||!selected)return;
   detail.empty();
   detailControls=[];
-  var head=$('<div class="uas114-detail-head"></div>');
-  var image=$('<div class="uas114-detail-poster"></div>');
+  var head=$('<div class="uas115-detail-head"></div>');
+  var image=$('<div class="uas115-detail-poster"></div>');
   var p=posterUrl(selected);
   if(p)image.css('background-image','url("'+p.replace(/"/g,'%22')+'")');
-  var info=$('<div class="uas114-detail-info"></div>');
-  info.append($('<div class="uas114-detail-title"></div>').text(titleOf(selected)));
-  info.append($('<div class="uas114-meta"></div>').text(metadata(selected)));
-  info.append($('<div class="uas114-description"></div>').text(selected.overview||selected.description||selected.plot||selected.short_story||'Опис відсутній'));
+  var info=$('<div class="uas115-detail-info"></div>');
+  info.append($('<div class="uas115-detail-title"></div>').text(titleOf(selected)));
+  info.append($('<div class="uas115-meta"></div>').text(metadata(selected)));
+  info.append($('<div class="uas115-description"></div>').text(selected.overview||selected.description||selected.plot||selected.short_story||'Опис відсутній'));
   head.append(image,info);
   detail.append(head);
   var reactions=reactionsOf(selected);
-  if(reactions)detail.append($('<div class="uas114-reactions"></div>').text('👍 '+reactions.likes+'   👎 '+reactions.dislikes));
+  if(reactions)detail.append($('<div class="uas115-reactions"></div>').text('👍 '+reactions.likes+'   👎 '+reactions.dislikes));
   var actors=castOf(selected);
   if(actors.length){
-   detail.append($('<div class="uas114-heading"></div>').text('Актори'));
-   var row=$('<div class="uas114-cast"></div>');
+   detail.append($('<div class="uas115-heading"></div>').text('Актори'));
+   var row=$('<div class="uas115-cast"></div>');
    actors.slice(0,20).forEach(function(actor){
-    var el=$('<div class="uas114-actor"></div>');
-    var photo=$('<div class="uas114-actor-photo"></div>');
+    var el=$('<div class="uas115-actor"></div>');
+    var photo=$('<div class="uas115-actor-photo"></div>');
     if(actor.photo)photo.css('background-image','url("'+absolute(actor.photo).replace(/"/g,'%22')+'")');
     el.append(photo,$('<div></div>').text(actor.name),$('<small></small>').text(actor.character||''));
     row.append(el);
@@ -1154,6 +1154,7 @@ function Page(o) {
      (data.playerSnippets||[]).forEach(function(snippet,i){rows.push({title:'PLAYER '+(i+1)+': '+snippet,value:-700-i});});
      (data.ajaxCalls||[]).forEach(function(call,i){rows.push({title:'AJAX '+(i+1)+': '+call,value:-800-i});});
      (data.playerTree||[]).forEach(function(line,i){rows.push({title:line,value:-900-i});});
+     (data.encodedInfo||[]).forEach(function(line,i){rows.push({title:'ДАНІ '+(i+1)+': '+line,value:-1000-i});});
      data.iframes.forEach(function(url,i){rows.push({title:'Iframe '+(i+1)+': '+url.slice(0,110),value:-3-i});});
      Lampa.Select.show({
       title:'Відео · '+item.external_source,
@@ -1172,7 +1173,7 @@ function Page(o) {
    });
    addDetailControl('Сторінка: '+selected.url.slice(0,65),function(){note('Сторінка джерела: '+selected.external_source);});
    addDetailControl('← До каталогу',closeDetails);
-   detail.append($('<div class="uas114-stream-status"></div>').text('Діагностика: HTML-маркери, JS-скрипти, елементи плеєра та iframe.'));
+   detail.append($('<div class="uas115-stream-status"></div>').text('Діагностика: HTML-маркери, JS-скрипти, елементи плеєра та iframe.'));
    if(started&&active())setTimeout(restoreFocus,70);
    return;
   }
@@ -1189,7 +1190,7 @@ function Page(o) {
    });
   });
   addDetailControl('← До каталогу',closeDetails);
-  detail.append($('<div class="uas114-stream-status"></div>').text(stream?'Доступних варіантів: '+qualities.length:'Завантаження потоку…'));
+  detail.append($('<div class="uas115-stream-status"></div>').text(stream?'Доступних варіантів: '+qualities.length:'Завантаження потоку…'));
   if(started&&active())setTimeout(restoreFocus,70);
  }
  function openDetails(it){
@@ -1207,7 +1208,7 @@ function Page(o) {
     renderDetails();
    }).catch(function(){});
   }).catch(function(e){
-   if(token===detailRequest&&view==='detail')detail.find('.uas114-stream-status').text('Помилка: '+e.message);
+   if(token===detailRequest&&view==='detail')detail.find('.uas115-stream-status').text('Помилка: '+e.message);
   });
  }
  function closeDetails(){
@@ -1239,12 +1240,12 @@ function Page(o) {
   },120);
  }
  this.create=function(){
-  root=$('<div class="uas114-page"></div>');
+  root=$('<div class="uas115-page"></div>');
   scroll=new Lampa.Scroll({mask:true,over:true,step:250});
-  filterBar=$('<div class="uas114-filters"></div>');
-  statusBar=$('<div class="uas114-status"></div>');
-  body=$('<div class="uas114-body"></div>');
-  detail=$('<div class="uas114-detail"></div>').hide();
+  filterBar=$('<div class="uas115-filters"></div>');
+  statusBar=$('<div class="uas115-status"></div>');
+  body=$('<div class="uas115-body"></div>');
+  detail=$('<div class="uas115-detail"></div>').hide();
   scroll.append(filterBar);scroll.append(statusBar);scroll.append(body);scroll.append(detail);
   root.append(scroll.render());
   // Required for Lampa.Layer to calculate the scroll viewport height.
@@ -1428,8 +1429,34 @@ function externalStreams(pageUrl){
        if(pv)playerTree.push('Атрибут '+(pi+1)+': '+pn.tagName+' '+pv.slice(0,220));
       }
      }else playerTree.push('Контейнер #player / .fplayer не знайдено');
+     var encodedInfo=[];
+     if(playerRoot){
+      var scanNodes=[playerRoot],desc=playerRoot.querySelectorAll('*');
+      for(var di=0;di<desc.length&&di<80;di++)scanNodes.push(desc[di]);
+      for(var ni=0;ni<scanNodes.length&&encodedInfo.length<30;ni++){
+       var node=scanNodes[ni],attrsList=node.attributes||[];
+       for(var aj=0;aj<attrsList.length&&encodedInfo.length<30;aj++){
+        var at=attrsList[aj],value=at.value||'';
+        if(!value||at.name==='class'||at.name==='style')continue;
+        encodedInfo.push(node.tagName+' '+at.name+' ('+value.length+'): '+value.slice(0,145));
+       }
+      }
+      var textContent=playerRoot.textContent||'';
+      var tokens=textContent.match(/[A-Za-z0-9+/_=-]{80,}/g)||[];
+      for(var bi=0;bi<tokens.length&&bi<8;bi++){
+       var token=tokens[bi];
+       encodedInfo.push('Закодований блок '+(bi+1)+' · '+token.length+' символів · початок: '+token.slice(0,65));
+       if(typeof atob==='function'&&/^[A-Za-z0-9+/]+={0,2}$/.test(token)&&token.length%4===0){
+        try{
+         var decoded=atob(token);
+         var readable=decoded.replace(/[^\x20-\x7e]/g,' ').slice(0,150);
+         encodedInfo.push('Base64 проба '+(bi+1)+': '+readable);
+        }catch(e){}
+       }
+      }
+     }
      var queue=embedded.slice(0,3),checked=0,errors=[];
-     function finishScan(){finish(null,{streams:candidates.slice(0,20),iframes:embedded.slice(0,8),checked:checked,errors:errors,diagnostics:diagnostics,bytes:html.length,indicators:indicators,scripts:scriptUrls,clues:clues,playerSnippets:playerSnippets,ajaxCalls:ajaxCalls,playerTree:playerTree});}
+     function finishScan(){finish(null,{streams:candidates.slice(0,20),iframes:embedded.slice(0,8),checked:checked,errors:errors,diagnostics:diagnostics,bytes:html.length,indicators:indicators,scripts:scriptUrls,clues:clues,playerSnippets:playerSnippets,ajaxCalls:ajaxCalls,playerTree:playerTree,encodedInfo:encodedInfo});}
      function scanNext(){
       if(!queue.length)return finishScan();
       var url=queue.shift(),done=false,child=new Lampa.Reguest();
@@ -1469,7 +1496,7 @@ function externalStreams(pageUrl){
 
 function menu(){
  var choices=[{title:'Пошук UAKino',value:'search'},{title:'UASerials · Фільми',value:'ext_uaserials'},{title:'UASerials · Серіали',value:'ext_uaserials_series'},{title:'Цікава Ідея · каталог (тест)',value:'ext_cikava'},{title:'UAFIX · каталог (тест)',value:'ext_uafix'}].concat(CATS.map(function(c){return {title:c[1],value:c[0]};}));
- Lampa.Select.show({title:'UA Search 1.1.4',items:choices,onBack:function(){setTimeout(focusMenu,80);},onSelect:function(item){
+ Lampa.Select.show({title:'UA Search 1.1.5',items:choices,onBack:function(){setTimeout(focusMenu,80);},onSelect:function(item){
   try{Lampa.Select.hide();}catch(e){}
   if(item.value==='search')setTimeout(search,180);
   else{
@@ -1480,28 +1507,28 @@ function menu(){
  }});
 }
 function addMenu(){
- if($('.menu [data-uas114="menu"]').length)return;
+ if($('.menu [data-uas115="menu"]').length)return;
  var list=$('.menu .menu__list').first();
  if(!list.length)return;
- var el=$('<li class="menu__item selector" data-uas114="menu"><div class="menu__ico">UA</div><div class="menu__text">UA Search</div></li>');
+ var el=$('<li class="menu__item selector" data-uas115="menu"><div class="menu__ico">UA</div><div class="menu__text">UA Search</div></li>');
  el.on('hover:enter',menu);
  var anchor=$('.menu [data-action="settings"]').first();
  if(anchor.length)anchor.before(el);else list.prepend(el);
 }
 function addSearch(){
  var area=$('.activity--active').find('.search,.search-box,.search__body').first();
- if(!area.length||area.find('[data-uas114="search"]').length)return;
- var el=$('<div class="uas114-search selector" data-uas114="search">UA Search · українські фільми</div>');
+ if(!area.length||area.find('[data-uas115="search"]').length)return;
+ var el=$('<div class="uas115-search selector" data-uas115="search">UA Search · українські фільми</div>');
  el.on('hover:enter click',search);
  area.prepend(el);
 }
 function init(){
  if(!window.Lampa||!Lampa.Component||!Lampa.Activity||!Lampa.Select||!Lampa.Input||!window.$)return setTimeout(init,500);
  Lampa.Component.add(COMPONENT,Page);
- var css='.uas114-page{height:100%}.uas114-filters{display:flex;flex-wrap:wrap;gap:.7em;padding:1.2em 3em .4em}.uas114-filter{padding:.65em 1em;border-radius:.5em;background:#303642;color:#fff}.uas114-filter.focus{background:#fff;color:#111}.uas114-status{padding:.4em 3em;font-size:.9em;opacity:.7}.uas114-body{padding:1em 3em 4em}.uas114-grid{display:grid;grid-template-columns:repeat(5,minmax(0,1fr));gap:1.2em}.uas114-card{min-width:0;padding:.4em;border-radius:.6em}.uas114-card.focus{background:#fff;color:#111}.uas114-poster{aspect-ratio:2/3;background:#252a35 center/cover no-repeat;border-radius:.35em}.uas114-name{font-size:1.1em;font-weight:600;margin-top:.5em;overflow:hidden;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical}.uas114-meta{font-size:.9em;opacity:.7;margin-top:.3em}.uas114-empty{padding:2em;opacity:.7}.uas114-search{padding:.7em 1em;margin:.5em;border-radius:.5em;background:#1f6feb;color:#fff}.uas114-detail{padding:1.5em 3em 5em}.uas114-detail-head{display:flex;gap:2em;margin-bottom:1.5em}.uas114-detail-poster{width:13em;min-width:13em;aspect-ratio:2/3;background:#252a35 center/cover no-repeat;border-radius:.5em}.uas114-detail-info{flex:1;min-width:0}.uas114-detail-title{font-size:2em;font-weight:700;margin-bottom:.4em}.uas114-description{font-size:1.05em;line-height:1.5;max-width:55em;margin-top:1em}.uas114-reactions{font-size:1.2em;margin:1em 0}.uas114-heading{font-size:1.4em;font-weight:700;margin:1em 0 .6em}.uas114-cast{display:flex;gap:1em;overflow-x:auto;margin-bottom:1.5em}.uas114-actor{width:8em;min-width:8em}.uas114-actor-photo{width:100%;aspect-ratio:2/3;background:#252a35 center/cover no-repeat;border-radius:.4em}.uas114-action{display:block;padding:.9em 1.2em;margin:.5em 0;background:#303642;border-radius:.5em;max-width:32em}.uas114-action.focus{background:#fff;color:#111}.uas114-stream-status{opacity:.7;font-size:.9em;margin-top:1em}body.true--mobile .uas114-grid{grid-template-columns:repeat(3,minmax(0,1fr))}';
- $('<style id="uas114-style"></style>').text(css).appendTo('head');
+ var css='.uas115-page{height:100%}.uas115-filters{display:flex;flex-wrap:wrap;gap:.7em;padding:1.2em 3em .4em}.uas115-filter{padding:.65em 1em;border-radius:.5em;background:#303642;color:#fff}.uas115-filter.focus{background:#fff;color:#111}.uas115-status{padding:.4em 3em;font-size:.9em;opacity:.7}.uas115-body{padding:1em 3em 4em}.uas115-grid{display:grid;grid-template-columns:repeat(5,minmax(0,1fr));gap:1.2em}.uas115-card{min-width:0;padding:.4em;border-radius:.6em}.uas115-card.focus{background:#fff;color:#111}.uas115-poster{aspect-ratio:2/3;background:#252a35 center/cover no-repeat;border-radius:.35em}.uas115-name{font-size:1.1em;font-weight:600;margin-top:.5em;overflow:hidden;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical}.uas115-meta{font-size:.9em;opacity:.7;margin-top:.3em}.uas115-empty{padding:2em;opacity:.7}.uas115-search{padding:.7em 1em;margin:.5em;border-radius:.5em;background:#1f6feb;color:#fff}.uas115-detail{padding:1.5em 3em 5em}.uas115-detail-head{display:flex;gap:2em;margin-bottom:1.5em}.uas115-detail-poster{width:13em;min-width:13em;aspect-ratio:2/3;background:#252a35 center/cover no-repeat;border-radius:.5em}.uas115-detail-info{flex:1;min-width:0}.uas115-detail-title{font-size:2em;font-weight:700;margin-bottom:.4em}.uas115-description{font-size:1.05em;line-height:1.5;max-width:55em;margin-top:1em}.uas115-reactions{font-size:1.2em;margin:1em 0}.uas115-heading{font-size:1.4em;font-weight:700;margin:1em 0 .6em}.uas115-cast{display:flex;gap:1em;overflow-x:auto;margin-bottom:1.5em}.uas115-actor{width:8em;min-width:8em}.uas115-actor-photo{width:100%;aspect-ratio:2/3;background:#252a35 center/cover no-repeat;border-radius:.4em}.uas115-action{display:block;padding:.9em 1.2em;margin:.5em 0;background:#303642;border-radius:.5em;max-width:32em}.uas115-action.focus{background:#fff;color:#111}.uas115-stream-status{opacity:.7;font-size:.9em;margin-top:1em}body.true--mobile .uas115-grid{grid-template-columns:repeat(3,minmax(0,1fr))}';
+ $('<style id="uas115-style"></style>').text(css).appendTo('head');
  var ready=false;
- function start(){if(ready)return;ready=true;addMenu();setInterval(function(){try{addMenu();addSearch();}catch(e){log(e.message);}},2000);note('UA Search 1.1.4 активовано');}
+ function start(){if(ready)return;ready=true;addMenu();setInterval(function(){try{addMenu();addSearch();}catch(e){log(e.message);}},2000);note('UA Search 1.1.5 активовано');}
  if(window.appready)start();
  else Lampa.Listener.follow('app',function(e){if(e.type==='ready')start();});
 }
