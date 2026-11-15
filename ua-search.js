@@ -1,112 +1,200 @@
-
 (function () {
   'use strict';
 
-  if (window.lampa_ua_search_v01) return;
-  window.lampa_ua_search_v01 = true;
+  var VERSION = '0.2.0';
+
+  if (window.lampa_ua_search_v02) return;
+  window.lampa_ua_search_v02 = true;
 
   var SOURCES = {
+    toloka: {
+      name: 'Toloka',
+      url: 'https://toloka.to/tracker.php?nm=Avatar'
+    },
     uakino: {
       name: 'UAKino',
       url: 'https://uakino.me/'
-    },
-    toloka: {
-      name: 'Toloka',
-      url: 'https://toloka.to/'
     }
   };
 
   function notify(message) {
-    if (window.Lampa && Lampa.Noty && Lampa.Noty.show) {
+    console.log('[UA Search] ' + message);
+
+    if (window.Lampa &&
+        Lampa.Noty &&
+        typeof Lampa.Noty.show === 'function') {
       Lampa.Noty.show(message);
-    } else {
-      console.log('[UA Search] ' + message);
     }
   }
 
-  function openUrl(url) {
-    try {
-      if (
-        window.Lampa &&
-        Lampa.Utils &&
-        typeof Lampa.Utils.openLink === 'function'
-      ) {
-        Lampa.Utils.openLink(url);
-      } else {
-        window.open(url, '_blank');
-      }
-    } catch (e) {
-      notify('Не вдалося відкрити сайт: ' + url);
-    }
-  }
+  function diagnose(source, html, status) {
+    var content = String(html || '').toLowerCase();
 
-  function askAndSearch(source) {
-    if (!Lampa.Input ||
-        typeof Lampa.Input.edit !== 'function') {
-      notify('Поле введення недоступне');
+    if (status < 200 || status >= 300) {
+      notify(source.name + ': HTTP ' + status);
       return;
     }
 
-    Lampa.Input.edit({
-      title: 'Пошук: ' + source.name,
-      value: '',
-      free: true
-    }, function (query) {
-      query = String(query || '').trim();
+    if (!content || content.length < 100) {
+      notify(source.name + ': порожня відповідь');
+      return;
+    }
 
-      if (!query) return;
+    if (
+      content.indexOf('cloudflare') !== -1 &&
+      (content.indexOf('challenge') !== -1 ||
+       content.indexOf('just a moment') !== -1)
+    ) {
+      notify(source.name + ': захист Cloudflare');
+      return;
+    }
 
+    if (source.name === 'Toloka') {
+      var hasTorrentRows =
+        content.indexOf('torrow') !== -1 ||
+        content.indexOf('tracker.php') !== -1 &&
+        content.indexOf('download') !== -1;
+
+      var hasLogin =
+        content.indexOf('login.php') !== -1 ||
+        content.indexOf('вхід') !== -1;
+
+      if (hasTorrentRows) {
+        notify('Toloka: HTML отримано, є ознаки релізів');
+      } else if (hasLogin) {
+        notify('Toloka: можливо, потрібна авторизація');
+      } else {
+        notify('Toloka: HTML отримано, релізи не визначено');
+      }
+    } else {
       notify(
-        'Запит: ' + query +
-        '. Відкриваємо ' + source.name
+        'UAKino: HTML отримано (' +
+        content.length + ' символів)'
       );
+    }
+  }
 
-      openUrl(source.url);
-    });
+  function testSource(key) {
+    var source = SOURCES[key];
+
+    if (!source) return;
+
+    notify('Перевіряємо ' + source.name + '...');
+
+    var xhr = new XMLHttpRequest();
+
+    xhr.open('GET', source.url, true);
+    xhr.timeout = 15000;
+    xhr.withCredentials = false;
+
+    xhr.onreadystatechange = function () {
+      if (xhr.readyState !== 4) return;
+
+      diagnose(
+        source,
+        xhr.responseText,
+        xhr.status
+      );
+    };
+
+    xhr.onerror = function () {
+      notify(
+        source.name +
+        ': помилка мережі або CORS'
+      );
+    };
+
+    xhr.ontimeout = function () {
+      notify(
+        source.name +
+        ': час очікування вичерпано'
+      );
+    };
+
+    try {
+      xhr.send();
+    } catch (error) {
+      notify(
+        source.name + ': ' + error.message
+      );
+    }
   }
 
   function start() {
-    if (!window.Lampa || !Lampa.SettingsApi) return;
+    if (!window.Lampa ||
+        !Lampa.SettingsApi ||
+        typeof Lampa.SettingsApi.addComponent !== 'function' ||
+        typeof Lampa.SettingsApi.addParam !== 'function') {
+      console.error('[UA Search] SettingsApi unavailable');
+      return;
+    }
 
     Lampa.SettingsApi.addComponent({
       component: 'ua_search',
       name: 'UA Search',
-      icon: '<svg viewBox="0 0 24 24" ' +
+      icon:
+        '<svg viewBox="0 0 24 24" ' +
         'width="24" height="24" fill="none" ' +
         'stroke="currentColor" stroke-width="2">' +
         '<circle cx="10" cy="10" r="7"/>' +
         '<path d="m15 15 6 6"/></svg>'
     });
 
-    ['uakino', 'toloka'].forEach(function (key) {
+    Object.keys(SOURCES).forEach(function (key) {
       var source = SOURCES[key];
 
       Lampa.SettingsApi.addParam({
         component: 'ua_search',
         param: {
-          name: 'ua_search_' + key,
+          name: 'ua_search_test_' + key,
           type: 'trigger',
           default: false
         },
         field: {
-          name: 'Відкрити ' + source.name,
-          description: 'Українське джерело'
+          name: 'Перевірити ' + source.name,
+          description: 'Тест прямого HTTP-доступу'
         },
         onChange: function () {
-          askAndSearch(source);
+          testSource(key);
         }
       });
     });
 
-    notify('UA Search 0.1 завантажено');
+    Lampa.SettingsApi.addParam({
+      component: 'ua_search',
+      param: {
+        name: 'ua_search_version',
+        type: 'trigger',
+        default: false
+      },
+      field: {
+        name: 'Версія ' + VERSION,
+        description: 'Діагностика українських джерел'
+      },
+      onChange: function () {
+        notify('Lampa UA Search ' + VERSION);
+      }
+    });
+
+    notify('UA Search ' + VERSION + ' завантажено');
+  }
+
+  var started = false;
+
+  function initialize() {
+    if (started) return;
+    if (!window.Lampa || !Lampa.SettingsApi) return;
+
+    started = true;
+    start();
   }
 
   if (window.appready) {
-    start();
+    initialize();
   } else if (window.Lampa && Lampa.Listener) {
     Lampa.Listener.follow('app', function (event) {
       if (event.type === 'ready') {
-        start();
+        initialize();
       }
     });
   }
