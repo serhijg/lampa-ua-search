@@ -2,11 +2,11 @@
 (function () {
 'use strict';
 
-if (window.UA_SEARCH_091) return;
-window.UA_SEARCH_091 = true;
+if (window.UA_SEARCH_092) return;
+window.UA_SEARCH_092 = true;
 
 var API = 'https://uakino.ax';
-var COMPONENT = 'ua_search_091';
+var COMPONENT = 'ua_search_092';
 var LIMIT = 60;
 var MAX_PAGES = 30;
 
@@ -312,7 +312,7 @@ function controllerName() {
 }
 
 function menuElement() {
- return $('.menu [data-uas91="menu"]').first();
+ return $('.menu [data-uas92="menu"]').first();
 }
 
 function focusMenu() {
@@ -347,8 +347,7 @@ function restoreAfterSearch(session,reason) {
   try {session.observer.disconnect();}
   catch(e) {}
  }
- if(session.timer) clearInterval(session.timer); if(session.backTimer)
-  clearTimeout(session.backTimer);
+ if(session.timer) clearInterval(session.timer); if(session.backTimer)  clearTimeout(session.backTimer);
 
  if(searchSession === session)
   searchSession = null;
@@ -629,31 +628,14 @@ function Page(o) {
  function focus(el) {
   if(!el || !active()) return;
   if(!$.contains(document,el)) return;
-
   try {
    var wrap=scroll.render();
-
    Lampa.Controller.collectionSet(wrap);
    Lampa.Controller.collectionFocus($(el),wrap);
-   // Lampa.Scroll.update() alone can leave grid rows outside the viewport.
-   // Keep the focused tile visible using the actual scroll container.
-   var target=$(el);
-   scroll.update(target,true);
-   var container=wrap.find('.scroll__body').first();
-   if(!container.length)container=wrap;
-   var node=container[0];
-   if(node && node.scrollHeight>node.clientHeight){
-    var itemRect=el.getBoundingClientRect();
-    var viewRect=node.getBoundingClientRect();
-    var margin=24;
-    if(itemRect.bottom>viewRect.bottom-margin)
-     node.scrollTop+=itemRect.bottom-viewRect.bottom+margin;
-    else if(itemRect.top<viewRect.top+margin)
-     node.scrollTop-=viewRect.top-itemRect.top+margin;
-   }
-  } catch(e) {
-   log('Focus error:',e.message);
-  }
+   // Lampa.Scroll uses translate3d on TV, not native scrollTop.
+   // Its viewport must be sized by Layer before update can move rows.
+   scroll.update($(el),true);
+  } catch(e) { log('Focus error:',e.message); }
  }
 
  function focusTile(n) {
@@ -697,8 +679,7 @@ function Page(o) {
    focusFilter(filterCursor);
  }
 
- function columns() {
-  if(tiles.length<2) return 1;
+ function columns() {  if(tiles.length<2) return 1;
 
   var y=tiles[0].getBoundingClientRect().top;
   var n=0;
@@ -872,24 +853,24 @@ function Page(o) {
 
  function makeCard(it) {
   var el=$(
-   '<div class="uas91-card selector">'+
-    '<div class="uas91-poster"></div>'+
-    '<div class="uas91-name"></div>'+
-    '<div class="uas91-meta"></div>'+
+   '<div class="uas92-card selector">'+
+    '<div class="uas92-poster"></div>'+
+    '<div class="uas92-name"></div>'+
+    '<div class="uas92-meta"></div>'+
    '</div>'
   );
 
   var p=posterUrl(it);
 
   if(p) {
-   el.find('.uas91-poster').css(
+   el.find('.uas92-poster').css(
     'background-image',
     'url("'+p.replace(/"/g,'%22')+'")'
    );
   }
 
-  el.find('.uas91-name').text(titleOf(it));
-  el.find('.uas91-meta').text(metadata(it));
+  el.find('.uas92-name').text(titleOf(it));
+  el.find('.uas92-meta').text(metadata(it));
 
   el.on('hover:enter',function() {
    openDetails(it);
@@ -919,7 +900,7 @@ function Page(o) {
 
   if(!visibleItems.length) {
    body.append(
-    $('<div class="uas91-empty"></div>')
+    $('<div class="uas92-empty"></div>')
      .text(
       loading ?
       'Завантаження…' :
@@ -931,7 +912,7 @@ function Page(o) {
    return;
   }
 
-  var grid=$('<div class="uas91-grid"></div>');
+  var grid=$('<div class="uas92-grid"></div>');
 
   visibleItems.forEach(function(it,index) {
    var el=makeCard(it);
@@ -1047,8 +1028,7 @@ function Page(o) {
       restoreFocus();
      }
     },70);
-   }
-  });
+   }  });
  }
 
  function filterAction(type) {
@@ -1119,7 +1099,7 @@ function Page(o) {
    ['sort','Сортування: '+names[settings.sort]],
    ['reset','Скинути']
   ].forEach(function(pair){
-   var el=$('<div class="uas91-filter selector"></div>').text(pair[1]);
+   var el=$('<div class="uas92-filter selector"></div>').text(pair[1]);
    el.on('hover:enter',function(){filterAction(pair[0]);});
    el.on('hover:focus',function(){zone='filters';filterCursor=filters.indexOf(el[0]);});
    filterBar.append(el);
@@ -1127,7 +1107,7 @@ function Page(o) {
   });
  }
  function addDetailControl(label,fn){
-  var el=$('<div class="uas91-action selector"></div>').text(label);
+  var el=$('<div class="uas92-action selector"></div>').text(label);
   el.on('hover:enter',fn);
   el.on('hover:focus',function(){zone='detail';detailCursor=detailControls.indexOf(el[0]);});
   detail.append(el);
@@ -1137,25 +1117,25 @@ function Page(o) {
   if(destroyed||view!=='detail'||!selected)return;
   detail.empty();
   detailControls=[];
-  var head=$('<div class="uas91-detail-head"></div>');
-  var image=$('<div class="uas91-detail-poster"></div>');
+  var head=$('<div class="uas92-detail-head"></div>');
+  var image=$('<div class="uas92-detail-poster"></div>');
   var p=posterUrl(selected);
   if(p)image.css('background-image','url("'+p.replace(/"/g,'%22')+'")');
-  var info=$('<div class="uas91-detail-info"></div>');
-  info.append($('<div class="uas91-detail-title"></div>').text(titleOf(selected)));
-  info.append($('<div class="uas91-meta"></div>').text(metadata(selected)));
-  info.append($('<div class="uas91-description"></div>').text(selected.overview||selected.description||selected.plot||selected.short_story||'Опис відсутній'));
+  var info=$('<div class="uas92-detail-info"></div>');
+  info.append($('<div class="uas92-detail-title"></div>').text(titleOf(selected)));
+  info.append($('<div class="uas92-meta"></div>').text(metadata(selected)));
+  info.append($('<div class="uas92-description"></div>').text(selected.overview||selected.description||selected.plot||selected.short_story||'Опис відсутній'));
   head.append(image,info);
   detail.append(head);
   var reactions=reactionsOf(selected);
-  if(reactions)detail.append($('<div class="uas91-reactions"></div>').text('👍 '+reactions.likes+'   👎 '+reactions.dislikes));
+  if(reactions)detail.append($('<div class="uas92-reactions"></div>').text('👍 '+reactions.likes+'   👎 '+reactions.dislikes));
   var actors=castOf(selected);
   if(actors.length){
-   detail.append($('<div class="uas91-heading"></div>').text('Актори'));
-   var row=$('<div class="uas91-cast"></div>');
+   detail.append($('<div class="uas92-heading"></div>').text('Актори'));
+   var row=$('<div class="uas92-cast"></div>');
    actors.slice(0,20).forEach(function(actor){
-    var el=$('<div class="uas91-actor"></div>');
-    var photo=$('<div class="uas91-actor-photo"></div>');
+    var el=$('<div class="uas92-actor"></div>');
+    var photo=$('<div class="uas92-actor-photo"></div>');
     if(actor.photo)photo.css('background-image','url("'+absolute(actor.photo).replace(/"/g,'%22')+'")');
     el.append(photo,$('<div></div>').text(actor.name),$('<small></small>').text(actor.character||''));
     row.append(el);
@@ -1175,7 +1155,7 @@ function Page(o) {
    });
   });
   addDetailControl('← До каталогу',closeDetails);
-  detail.append($('<div class="uas91-stream-status"></div>').text(stream?'Доступних варіантів: '+qualities.length:'Завантаження потоку…'));
+  detail.append($('<div class="uas92-stream-status"></div>').text(stream?'Доступних варіантів: '+qualities.length:'Завантаження потоку…'));
   if(started&&active())setTimeout(restoreFocus,70);
  }
  function openDetails(it){
@@ -1192,7 +1172,7 @@ function Page(o) {
     renderDetails();
    }).catch(function(){});
   }).catch(function(e){
-   if(token===detailRequest&&view==='detail')detail.find('.uas91-stream-status').text('Помилка: '+e.message);
+   if(token===detailRequest&&view==='detail')detail.find('.uas92-stream-status').text('Помилка: '+e.message);
   });
  }
  function closeDetails(){
@@ -1201,14 +1181,17 @@ function Page(o) {
   setTimeout(function(){if(active())focusTile(cursor);},80);
  }
  this.create=function(){
-  root=$('<div class="uas91-page"></div>');
+  root=$('<div class="uas92-page"></div>');
   scroll=new Lampa.Scroll({mask:true,over:true,step:250});
-  filterBar=$('<div class="uas91-filters"></div>');
-  statusBar=$('<div class="uas91-status"></div>');
-  body=$('<div class="uas91-body"></div>');
-  detail=$('<div class="uas91-detail"></div>').hide();
+  filterBar=$('<div class="uas92-filters"></div>');
+  statusBar=$('<div class="uas92-status"></div>');
+  body=$('<div class="uas92-body"></div>');
+  detail=$('<div class="uas92-detail"></div>').hide();
   scroll.append(filterBar);scroll.append(statusBar);scroll.append(body);scroll.append(detail);
-  root.append(scroll.render());renderFilters();loadNext();
+  root.append(scroll.render());
+  // Required for Lampa.Layer to calculate the scroll viewport height.
+  scroll.minus(false);
+  renderFilters();loadNext();
  };
  this.start=function(){
   started=true;
@@ -1235,7 +1218,7 @@ function show(query,cat,title){
 }
 function menu(){
  var choices=[{title:'Пошук UAKino',value:'search'}].concat(CATS.map(function(c){return {title:c[1],value:c[0]};}));
- Lampa.Select.show({title:'UA Search 0.9.1',items:choices,onBack:function(){setTimeout(focusMenu,80);},onSelect:function(item){
+ Lampa.Select.show({title:'UA Search 0.9.2',items:choices,onBack:function(){setTimeout(focusMenu,80);},onSelect:function(item){
   try{Lampa.Select.hide();}catch(e){}
   if(item.value==='search')setTimeout(search,180);
   else{
@@ -1245,28 +1228,28 @@ function menu(){
  }});
 }
 function addMenu(){
- if($('.menu [data-uas91="menu"]').length)return;
+ if($('.menu [data-uas92="menu"]').length)return;
  var list=$('.menu .menu__list').first();
  if(!list.length)return;
- var el=$('<li class="menu__item selector" data-uas91="menu"><div class="menu__ico">UA</div><div class="menu__text">UA Search</div></li>');
+ var el=$('<li class="menu__item selector" data-uas92="menu"><div class="menu__ico">UA</div><div class="menu__text">UA Search</div></li>');
  el.on('hover:enter',menu);
  var anchor=$('.menu [data-action="settings"]').first();
  if(anchor.length)anchor.before(el);else list.prepend(el);
 }
 function addSearch(){
  var area=$('.activity--active').find('.search,.search-box,.search__body').first();
- if(!area.length||area.find('[data-uas91="search"]').length)return;
- var el=$('<div class="uas91-search selector" data-uas91="search">UA Search · українські фільми</div>');
+ if(!area.length||area.find('[data-uas92="search"]').length)return;
+ var el=$('<div class="uas92-search selector" data-uas92="search">UA Search · українські фільми</div>');
  el.on('hover:enter click',search);
  area.prepend(el);
 }
 function init(){
  if(!window.Lampa||!Lampa.Component||!Lampa.Activity||!Lampa.Select||!Lampa.Input||!window.$)return setTimeout(init,500);
  Lampa.Component.add(COMPONENT,Page);
- var css='.uas91-page{height:100%}.uas91-filters{display:flex;flex-wrap:wrap;gap:.7em;padding:1.2em 3em .4em}.uas91-filter{padding:.65em 1em;border-radius:.5em;background:#303642;color:#fff}.uas91-filter.focus{background:#fff;color:#111}.uas91-status{padding:.4em 3em;font-size:.9em;opacity:.7}.uas91-body{padding:1em 3em 4em}.uas91-grid{display:grid;grid-template-columns:repeat(5,minmax(0,1fr));gap:1.2em}.uas91-card{min-width:0;padding:.4em;border-radius:.6em}.uas91-card.focus{background:#fff;color:#111}.uas91-poster{aspect-ratio:2/3;background:#252a35 center/cover no-repeat;border-radius:.35em}.uas91-name{font-size:1.1em;font-weight:600;margin-top:.5em;overflow:hidden;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical}.uas91-meta{font-size:.9em;opacity:.7;margin-top:.3em}.uas91-empty{padding:2em;opacity:.7}.uas91-search{padding:.7em 1em;margin:.5em;border-radius:.5em;background:#1f6feb;color:#fff}.uas91-detail{padding:1.5em 3em 5em}.uas91-detail-head{display:flex;gap:2em;margin-bottom:1.5em}.uas91-detail-poster{width:13em;min-width:13em;aspect-ratio:2/3;background:#252a35 center/cover no-repeat;border-radius:.5em}.uas91-detail-info{flex:1;min-width:0}.uas91-detail-title{font-size:2em;font-weight:700;margin-bottom:.4em}.uas91-description{font-size:1.05em;line-height:1.5;max-width:55em;margin-top:1em}.uas91-reactions{font-size:1.2em;margin:1em 0}.uas91-heading{font-size:1.4em;font-weight:700;margin:1em 0 .6em}.uas91-cast{display:flex;gap:1em;overflow-x:auto;margin-bottom:1.5em}.uas91-actor{width:8em;min-width:8em}.uas91-actor-photo{width:100%;aspect-ratio:2/3;background:#252a35 center/cover no-repeat;border-radius:.4em}.uas91-action{display:block;padding:.9em 1.2em;margin:.5em 0;background:#303642;border-radius:.5em;max-width:32em}.uas91-action.focus{background:#fff;color:#111}.uas91-stream-status{opacity:.7;font-size:.9em;margin-top:1em}body.true--mobile .uas91-grid{grid-template-columns:repeat(3,minmax(0,1fr))}';
- $('<style id="uas91-style"></style>').text(css).appendTo('head');
+ var css='.uas92-page{height:100%}.uas92-filters{display:flex;flex-wrap:wrap;gap:.7em;padding:1.2em 3em .4em}.uas92-filter{padding:.65em 1em;border-radius:.5em;background:#303642;color:#fff}.uas92-filter.focus{background:#fff;color:#111}.uas92-status{padding:.4em 3em;font-size:.9em;opacity:.7}.uas92-body{padding:1em 3em 4em}.uas92-grid{display:grid;grid-template-columns:repeat(5,minmax(0,1fr));gap:1.2em}.uas92-card{min-width:0;padding:.4em;border-radius:.6em}.uas92-card.focus{background:#fff;color:#111}.uas92-poster{aspect-ratio:2/3;background:#252a35 center/cover no-repeat;border-radius:.35em}.uas92-name{font-size:1.1em;font-weight:600;margin-top:.5em;overflow:hidden;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical}.uas92-meta{font-size:.9em;opacity:.7;margin-top:.3em}.uas92-empty{padding:2em;opacity:.7}.uas92-search{padding:.7em 1em;margin:.5em;border-radius:.5em;background:#1f6feb;color:#fff}.uas92-detail{padding:1.5em 3em 5em}.uas92-detail-head{display:flex;gap:2em;margin-bottom:1.5em}.uas92-detail-poster{width:13em;min-width:13em;aspect-ratio:2/3;background:#252a35 center/cover no-repeat;border-radius:.5em}.uas92-detail-info{flex:1;min-width:0}.uas92-detail-title{font-size:2em;font-weight:700;margin-bottom:.4em}.uas92-description{font-size:1.05em;line-height:1.5;max-width:55em;margin-top:1em}.uas92-reactions{font-size:1.2em;margin:1em 0}.uas92-heading{font-size:1.4em;font-weight:700;margin:1em 0 .6em}.uas92-cast{display:flex;gap:1em;overflow-x:auto;margin-bottom:1.5em}.uas92-actor{width:8em;min-width:8em}.uas92-actor-photo{width:100%;aspect-ratio:2/3;background:#252a35 center/cover no-repeat;border-radius:.4em}.uas92-action{display:block;padding:.9em 1.2em;margin:.5em 0;background:#303642;border-radius:.5em;max-width:32em}.uas92-action.focus{background:#fff;color:#111}.uas92-stream-status{opacity:.7;font-size:.9em;margin-top:1em}body.true--mobile .uas92-grid{grid-template-columns:repeat(3,minmax(0,1fr))}';
+ $('<style id="uas92-style"></style>').text(css).appendTo('head');
  var ready=false;
- function start(){if(ready)return;ready=true;addMenu();setInterval(function(){try{addMenu();addSearch();}catch(e){log(e.message);}},2000);note('UA Search 0.9.1 активовано');}
+ function start(){if(ready)return;ready=true;addMenu();setInterval(function(){try{addMenu();addSearch();}catch(e){log(e.message);}},2000);note('UA Search 0.9.2 активовано');}
  if(window.appready)start();
  else Lampa.Listener.follow('app',function(e){if(e.type==='ready')start();});
 }
