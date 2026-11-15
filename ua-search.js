@@ -2,11 +2,11 @@
 (function () {
 'use strict';
 
-if (window.UA_SEARCH_125) return;
-window.UA_SEARCH_125 = true;
+if (window.UA_SEARCH_126) return;
+window.UA_SEARCH_126 = true;
 
 var API = 'https://uakino.ax';
-var COMPONENT = 'ua_search_125';
+var COMPONENT = 'ua_search_126';
 var LIMIT = 60;
 var MAX_PAGES = 30;
 
@@ -206,23 +206,34 @@ function parseMaster(text,url) {
  return qualities;
 }
 
-function resolveStream(it) {
- var id = it.uakino_id || it.id;
-
- if(!id)
-  return Promise.reject(Error('Відсутній UAKino ID'));
-
- return request(
-  '/hls/api/play?movie='+enc(id)+
-  '&s=lp'+Date.now()
- ).then(function(data) {
-  var url = absolute(
-   data.manifest_abs || data.manifest
-  );
-
-  if(!url) throw Error('Потік недоступний');
-
-  return {url:url,data:data};
+function episodeNumber(v) {
+ var n=Number(v);
+ return isFinite(n)&&n>0?Math.floor(n):0;
+}
+function seasonList(data) {
+ var root=data||{};
+ var raw=root.seasons||root.serial_seasons||root.tv_seasons||
+  (root.data&&(root.data.seasons||root.data.serial_seasons))||[];
+ if(!Array.isArray(raw)&&raw&&typeof raw==='object')raw=Object.keys(raw).map(function(k){return {season:k,episodes:raw[k]};});
+ if(!Array.isArray(raw))return [];
+ return raw.map(function(v,i){
+  var n=episodeNumber(typeof v==='object'?(v.season_number||v.season||v.number||v.id):(v))||i+1;
+  var eps=typeof v==='object'?(v.episodes||v.series||v.items||[]):[];
+  if(!Array.isArray(eps)&&eps&&typeof eps==='object')eps=Object.keys(eps).map(function(k){return {episode:k,source:eps[k]};});
+  return {number:n,episodes:Array.isArray(eps)?eps.map(function(e,j){
+   return {number:episodeNumber(typeof e==='object'?(e.episode_number||e.episode||e.number||e.id):e)||j+1,raw:e};
+  }):[]};
+ }).filter(function(v){return !!v.number;});
+}
+function resolveStream(it,season,episode) {
+ var id=it.uakino_id||it.id;
+ if(!id)return Promise.reject(Error('Відсутній UAKino ID'));
+ var path='/hls/api/play?movie='+enc(id)+'&s=lp'+Date.now();
+ if(season)path+='&season='+enc(season);
+ if(episode)path+='&episode='+enc(episode);
+ return request(path).then(function(data){
+  var url=absolute(data.manifest_abs||data.manifest||data.url||'');
+  return {url:url,data:data,seasons:seasonList(data)};
  });
 }
 
@@ -313,7 +324,7 @@ function controllerName() {
 }
 
 function menuElement() {
- return $('.menu [data-uas125="menu"]').first();
+ return $('.menu [data-uas126="menu"]').first();
 }
 
 function focusMenu() {
@@ -850,24 +861,24 @@ function Page(o) {
 
  function makeCard(it) {
   var el=$(
-   '<div class="uas125-card selector">'+
-    '<div class="uas125-poster"></div>'+
-    '<div class="uas125-name"></div>'+
-    '<div class="uas125-meta"></div>'+
+   '<div class="uas126-card selector">'+
+    '<div class="uas126-poster"></div>'+
+    '<div class="uas126-name"></div>'+
+    '<div class="uas126-meta"></div>'+
    '</div>'
   );
 
   var p=posterUrl(it);
 
   if(p) {
-   el.find('.uas125-poster').css(
+   el.find('.uas126-poster').css(
     'background-image',
     'url("'+p.replace(/"/g,'%22')+'")'
    );
   }
 
-  el.find('.uas125-name').text(titleOf(it));
-  el.find('.uas125-meta').text(metadata(it));
+  el.find('.uas126-name').text(titleOf(it));
+  el.find('.uas126-meta').text(metadata(it));
 
   el.on('hover:enter',function() {
    openDetails(it);
@@ -897,7 +908,7 @@ function Page(o) {
 
   if(!visibleItems.length) {
    body.append(
-    $('<div class="uas125-empty"></div>')
+    $('<div class="uas126-empty"></div>')
      .text(
       loading ?
       'Завантаження…' :
@@ -909,7 +920,7 @@ function Page(o) {
    return;
   }
 
-  var grid=$('<div class="uas125-grid"></div>');
+  var grid=$('<div class="uas126-grid"></div>');
 
   visibleItems.forEach(function(it,index) {
    var el=makeCard(it);
@@ -1094,7 +1105,7 @@ function Page(o) {
    ['sort','Сортування: '+names[settings.sort]],
    ['reset','Скинути']
   ].forEach(function(pair){
-   var el=$('<div class="uas125-filter selector"></div>').text(pair[1]);
+   var el=$('<div class="uas126-filter selector"></div>').text(pair[1]);
    el.on('hover:enter',function(){filterAction(pair[0]);});
    el.on('hover:focus',function(){zone='filters';filterCursor=filters.indexOf(el[0]);});
    filterBar.append(el);
@@ -1102,35 +1113,50 @@ function Page(o) {
   });
  }
  function addDetailControl(label,fn){
-  var el=$('<div class="uas125-action selector"></div>').text(label);
+  var el=$('<div class="uas126-action selector"></div>').text(label);
   el.on('hover:enter',fn);
   el.on('hover:focus',function(){zone='detail';detailCursor=detailControls.indexOf(el[0]);});
   detail.append(el);
   detailControls.push(el[0]);
  }
+ var selectedSeason=0,selectedEpisode=0;
+ function loadEpisode(){
+  if(!selected)return;
+  var item=selected,token=++detailRequest;
+  stream=null;qualities=[];selectedQuality=null;renderDetails();
+  resolveStream(item,selectedSeason,selectedEpisode).then(function(result){
+   if(destroyed||token!==detailRequest||selected!==item)return;
+   stream=result;renderDetails();
+   if(!result.url)return;
+   return http(result.url,false).then(function(text){
+    if(destroyed||token!==detailRequest||selected!==item)return;
+    qualities=parseMaster(text,result.url);renderDetails();
+   }).catch(function(){});
+  }).catch(function(e){if(token===detailRequest)detail.find('.uas126-stream-status').text('Помилка: '+e.message);});
+ }
  function renderDetails(){
   if(destroyed||view!=='detail'||!selected)return;
   detail.empty();
   detailControls=[];
-  var head=$('<div class="uas125-detail-head"></div>');
-  var image=$('<div class="uas125-detail-poster"></div>');
+  var head=$('<div class="uas126-detail-head"></div>');
+  var image=$('<div class="uas126-detail-poster"></div>');
   var p=posterUrl(selected);
   if(p)image.css('background-image','url("'+p.replace(/"/g,'%22')+'")');
-  var info=$('<div class="uas125-detail-info"></div>');
-  info.append($('<div class="uas125-detail-title"></div>').text(titleOf(selected)));
-  info.append($('<div class="uas125-meta"></div>').text(metadata(selected)));
-  info.append($('<div class="uas125-description"></div>').text(selected.overview||selected.description||selected.plot||selected.short_story||'Опис відсутній'));
+  var info=$('<div class="uas126-detail-info"></div>');
+  info.append($('<div class="uas126-detail-title"></div>').text(titleOf(selected)));
+  info.append($('<div class="uas126-meta"></div>').text(metadata(selected)));
+  info.append($('<div class="uas126-description"></div>').text(selected.overview||selected.description||selected.plot||selected.short_story||'Опис відсутній'));
   head.append(image,info);
   detail.append(head);
   var reactions=reactionsOf(selected);
-  if(reactions)detail.append($('<div class="uas125-reactions"></div>').text('👍 '+reactions.likes+'   👎 '+reactions.dislikes));
+  if(reactions)detail.append($('<div class="uas126-reactions"></div>').text('👍 '+reactions.likes+'   👎 '+reactions.dislikes));
   var actors=castOf(selected);
   if(actors.length){
-   detail.append($('<div class="uas125-heading"></div>').text('Актори'));
-   var row=$('<div class="uas125-cast"></div>');
+   detail.append($('<div class="uas126-heading"></div>').text('Актори'));
+   var row=$('<div class="uas126-cast"></div>');
    actors.slice(0,20).forEach(function(actor){
-    var el=$('<div class="uas125-actor"></div>');
-    var photo=$('<div class="uas125-actor-photo"></div>');
+    var el=$('<div class="uas126-actor"></div>');
+    var photo=$('<div class="uas126-actor-photo"></div>');
     if(actor.photo)photo.css('background-image','url("'+absolute(actor.photo).replace(/"/g,'%22')+'")');
     el.append(photo,$('<div></div>').text(actor.name),$('<small></small>').text(actor.character||''));
     row.append(el);
@@ -1181,12 +1207,33 @@ function Page(o) {
    });
    addDetailControl('Сторінка: '+selected.url.slice(0,65),function(){note('Сторінка джерела: '+selected.external_source);});
    addDetailControl('← До каталогу',closeDetails);
-   detail.append($('<div class="uas125-stream-status"></div>').text('Діагностика: HTML та iframe/postMessage.'));
+   detail.append($('<div class="uas126-stream-status"></div>').text('Діагностика: HTML та iframe/postMessage.'));
    if(started&&active())setTimeout(restoreFocus,70);
    return;
   }
+  var seasons=seasonList(selected).concat(stream?stream.seasons:[]);
+  var bySeason={};
+  seasons.forEach(function(se){if(!bySeason[se.number]||se.episodes.length>bySeason[se.number].episodes.length)bySeason[se.number]=se;});
+  seasons=Object.keys(bySeason).map(function(k){return bySeason[k];}).sort(function(a,b){return a.number-b.number;});
+  if(seasons.length){
+   if(!selectedSeason||!bySeason[selectedSeason])selectedSeason=seasons[0].number;
+   var current=bySeason[selectedSeason];
+   if(!selectedEpisode&&current.episodes.length)selectedEpisode=current.episodes[0].number;
+   addDetailControl('Сезон: '+selectedSeason,function(){
+    selectOptions('Виберіть сезон',seasons.map(function(v){return {title:'Сезон '+v.number,value:v.number};}),function(n){
+     selectedSeason=n;selectedEpisode=0;loadEpisode(); 
+    });
+   });
+   if(current.episodes.length){
+    addDetailControl('Серія: '+(selectedEpisode||1),function(){
+     selectOptions('Виберіть серію',current.episodes.map(function(v){return {title:'Серія '+v.number,value:v.number};}),function(n){
+      selectedEpisode=n;loadEpisode();
+     });
+    });
+   }
+  }
   addDetailControl('▶ Дивитися',function(){
-   if(stream)playStream(selected,stream,selectedQuality);
+   if(stream&&stream.url)playStream(selected,stream,selectedQuality);
    else note('Завантаження відео…');
   });
   addDetailControl('Якість: '+(selectedQuality?selectedQuality.name:'Auto'),function(){
@@ -1198,11 +1245,11 @@ function Page(o) {
    });
   });
   addDetailControl('← До каталогу',closeDetails);
-  detail.append($('<div class="uas125-stream-status"></div>').text(stream?'Доступних варіантів: '+qualities.length:'Завантаження потоку…'));
+  detail.append($('<div class="uas126-stream-status"></div>').text(stream?'Доступних варіантів: '+qualities.length:'Завантаження потоку…'));
   if(started&&active())setTimeout(restoreFocus,70);
  }
  function openDetails(it){
-  selected=it;stream=null;qualities=[];selectedQuality=null;detailCursor=0;
+  selected=it;stream=null;qualities=[];selectedQuality=null;selectedSeason=0;selectedEpisode=0;detailCursor=0;
   view='detail';zone='detail';filterBar.hide();statusBar.hide();body.hide();detail.show();
   renderDetails();
   var token=++detailRequest;
@@ -1210,13 +1257,14 @@ function Page(o) {
   resolveStream(it).then(function(s){
    if(destroyed||token!==detailRequest||view!=='detail')return;
    stream=s;renderDetails();
+   if(!s.url)return;
    return http(s.url,false).then(function(text){
     if(destroyed||token!==detailRequest||view!=='detail')return;
     qualities=parseMaster(text,s.url);
     renderDetails();
    }).catch(function(){});
   }).catch(function(e){
-   if(token===detailRequest&&view==='detail')detail.find('.uas125-stream-status').text('Помилка: '+e.message);
+   if(token===detailRequest&&view==='detail')detail.find('.uas126-stream-status').text('Помилка: '+e.message);
   });
  }
  function closeDetails(){
@@ -1248,12 +1296,12 @@ function Page(o) {
   },120);
  }
  this.create=function(){
-  root=$('<div class="uas125-page"></div>');
+  root=$('<div class="uas126-page"></div>');
   scroll=new Lampa.Scroll({mask:true,over:true,step:250});
-  filterBar=$('<div class="uas125-filters"></div>');
-  statusBar=$('<div class="uas125-status"></div>');
-  body=$('<div class="uas125-body"></div>');
-  detail=$('<div class="uas125-detail"></div>').hide();
+  filterBar=$('<div class="uas126-filters"></div>');
+  statusBar=$('<div class="uas126-status"></div>');
+  body=$('<div class="uas126-body"></div>');
+  detail=$('<div class="uas126-detail"></div>').hide();
   scroll.append(filterBar);scroll.append(statusBar);scroll.append(body);scroll.append(detail);
   root.append(scroll.render());
   // Required for Lampa.Layer to calculate the scroll viewport height.
@@ -1621,26 +1669,26 @@ function menu(){
  }});
 }
 function addMenu(){
- if($('.menu [data-uas125="menu"]').length)return;
+ if($('.menu [data-uas126="menu"]').length)return;
  var list=$('.menu .menu__list').first();
  if(!list.length)return;
- var el=$('<li class="menu__item selector" data-uas125="menu"><div class="menu__ico">UA</div><div class="menu__text">UA Search</div></li>');
+ var el=$('<li class="menu__item selector" data-uas126="menu"><div class="menu__ico">UA</div><div class="menu__text">UA Search</div></li>');
  el.on('hover:enter',menu);
  var anchor=$('.menu [data-action="settings"]').first();
  if(anchor.length)anchor.before(el);else list.prepend(el);
 }
 function addSearch(){
  var area=$('.activity--active').find('.search,.search-box,.search__body').first();
- if(!area.length||area.find('[data-uas125="search"]').length)return;
- var el=$('<div class="uas125-search selector" data-uas125="search">UA Search · українські фільми</div>');
+ if(!area.length||area.find('[data-uas126="search"]').length)return;
+ var el=$('<div class="uas126-search selector" data-uas126="search">UA Search · українські фільми</div>');
  el.on('hover:enter click',search);
  area.prepend(el);
 }
 function init(){
  if(!window.Lampa||!Lampa.Component||!Lampa.Activity||!Lampa.Select||!Lampa.Input||!window.$)return setTimeout(init,500);
  Lampa.Component.add(COMPONENT,Page);
- var css='.uas125-page{height:100%}.uas125-filters{display:flex;flex-wrap:wrap;gap:.7em;padding:1.2em 3em .4em}.uas125-filter{padding:.65em 1em;border-radius:.5em;background:#303642;color:#fff}.uas125-filter.focus{background:#fff;color:#111}.uas125-status{padding:.4em 3em;font-size:.9em;opacity:.7}.uas125-body{padding:1em 3em 4em}.uas125-grid{display:grid;grid-template-columns:repeat(5,minmax(0,1fr));gap:1.2em}.uas125-card{min-width:0;padding:.4em;border-radius:.6em}.uas125-card.focus{background:#fff;color:#111}.uas125-poster{aspect-ratio:2/3;background:#252a35 center/cover no-repeat;border-radius:.35em}.uas125-name{font-size:1.1em;font-weight:600;margin-top:.5em;overflow:hidden;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical}.uas125-meta{font-size:.9em;opacity:.7;margin-top:.3em}.uas125-empty{padding:2em;opacity:.7}.uas125-search{padding:.7em 1em;margin:.5em;border-radius:.5em;background:#1f6feb;color:#fff}.uas125-detail{padding:1.5em 3em 5em}.uas125-detail-head{display:flex;gap:2em;margin-bottom:1.5em}.uas125-detail-poster{width:13em;min-width:13em;aspect-ratio:2/3;background:#252a35 center/cover no-repeat;border-radius:.5em}.uas125-detail-info{flex:1;min-width:0}.uas125-detail-title{font-size:2em;font-weight:700;margin-bottom:.4em}.uas125-description{font-size:1.05em;line-height:1.5;max-width:55em;margin-top:1em}.uas125-reactions{font-size:1.2em;margin:1em 0}.uas125-heading{font-size:1.4em;font-weight:700;margin:1em 0 .6em}.uas125-cast{display:flex;gap:1em;overflow-x:auto;margin-bottom:1.5em}.uas125-actor{width:8em;min-width:8em}.uas125-actor-photo{width:100%;aspect-ratio:2/3;background:#252a35 center/cover no-repeat;border-radius:.4em}.uas125-action{display:block;padding:.9em 1.2em;margin:.5em 0;background:#303642;border-radius:.5em;max-width:32em}.uas125-action.focus{background:#fff;color:#111}.uas125-stream-status{opacity:.7;font-size:.9em;margin-top:1em}body.true--mobile .uas125-grid{grid-template-columns:repeat(3,minmax(0,1fr))}';
- $('<style id="uas125-style"></style>').text(css).appendTo('head');
+ var css='.uas126-page{height:100%}.uas126-filters{display:flex;flex-wrap:wrap;gap:.7em;padding:1.2em 3em .4em}.uas126-filter{padding:.65em 1em;border-radius:.5em;background:#303642;color:#fff}.uas126-filter.focus{background:#fff;color:#111}.uas126-status{padding:.4em 3em;font-size:.9em;opacity:.7}.uas126-body{padding:1em 3em 4em}.uas126-grid{display:grid;grid-template-columns:repeat(5,minmax(0,1fr));gap:1.2em}.uas126-card{min-width:0;padding:.4em;border-radius:.6em}.uas126-card.focus{background:#fff;color:#111}.uas126-poster{aspect-ratio:2/3;background:#252a35 center/cover no-repeat;border-radius:.35em}.uas126-name{font-size:1.1em;font-weight:600;margin-top:.5em;overflow:hidden;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical}.uas126-meta{font-size:.9em;opacity:.7;margin-top:.3em}.uas126-empty{padding:2em;opacity:.7}.uas126-search{padding:.7em 1em;margin:.5em;border-radius:.5em;background:#1f6feb;color:#fff}.uas126-detail{padding:1.5em 3em 5em}.uas126-detail-head{display:flex;gap:2em;margin-bottom:1.5em}.uas126-detail-poster{width:13em;min-width:13em;aspect-ratio:2/3;background:#252a35 center/cover no-repeat;border-radius:.5em}.uas126-detail-info{flex:1;min-width:0}.uas126-detail-title{font-size:2em;font-weight:700;margin-bottom:.4em}.uas126-description{font-size:1.05em;line-height:1.5;max-width:55em;margin-top:1em}.uas126-reactions{font-size:1.2em;margin:1em 0}.uas126-heading{font-size:1.4em;font-weight:700;margin:1em 0 .6em}.uas126-cast{display:flex;gap:1em;overflow-x:auto;margin-bottom:1.5em}.uas126-actor{width:8em;min-width:8em}.uas126-actor-photo{width:100%;aspect-ratio:2/3;background:#252a35 center/cover no-repeat;border-radius:.4em}.uas126-action{display:block;padding:.9em 1.2em;margin:.5em 0;background:#303642;border-radius:.5em;max-width:32em}.uas126-action.focus{background:#fff;color:#111}.uas126-stream-status{opacity:.7;font-size:.9em;margin-top:1em}body.true--mobile .uas126-grid{grid-template-columns:repeat(3,minmax(0,1fr))}';
+ $('<style id="uas126-style"></style>').text(css).appendTo('head');
  var ready=false;
  function start(){if(ready)return;ready=true;addMenu();setInterval(function(){try{addMenu();addSearch();}catch(e){log(e.message);}},2000);note('UA Search 1.2.5 активовано');}
  if(window.appready)start();
