@@ -22,7 +22,7 @@
   try { tree = JSON.parse(options.file); }
   catch (e) { tree = [{title: 'Відео', file: options.file}]; }
   if (!Array.isArray(tree)) throw Error('Невідомий формат каталогу');
-  var episodes = [];
+  var episodes = [], isSeries = tree.some(function (node) { return node && Array.isArray(node.folder); });
   function walk(nodes, season) {
    nodes.forEach(function (node, index) {
     if (!node || typeof node !== 'object') return;
@@ -40,13 +40,13 @@
     if (voices.length) episodes.push({
      id: String(node.id || season + '-' + (node.number || index + 1)),
      season: String(season || '1'), number: String(node.number || index + 1),
-     title: node.title || 'Серія ' + (index + 1), voices: voices
+     title: node.title || 'Серія ' + (index + 1), poster: node.poster || '', voices: voices
     });
    });
   }
   walk(tree, '');
   if (!episodes.length) throw Error('HLS-посилань у каталозі немає');
-  return {episodes: episodes, st: options.st || ''};
+  return {episodes: episodes, isSeries: isSeries, st: options.st || ''};
  }
  function get(url) {
   return new Promise(function (resolve, reject) {
@@ -136,11 +136,30 @@
   }
   throw Error('Основний плеєр Tortuga не знайдено. Метадані embedUrl можуть містити трейлер');
  }
+ function metadataFrom(html) {
+  var doc=new DOMParser().parseFromString(html,'text/html'),out={};
+  function visit(value){
+   if(!value||typeof value!=='object')return;
+   var types=Array.isArray(value['@type'])?value['@type']:[value['@type']];
+   if(types.some(function(type){return type==='Movie'||type==='TVSeries';})){
+    out.overview=value.description||'';
+    out.year=parseInt(value.datePublished||value.dateCreated||'',10)||0;
+    out.rating=Number(value.aggregateRating&&value.aggregateRating.ratingValue)||0;
+    out.cast=(Array.isArray(value.actor)?value.actor:[]).map(function(actor){return {name:actor.name||''};});
+    return;
+   }
+   Object.keys(value).forEach(function(key){if(value[key]&&typeof value[key]==='object')visit(value[key]);});
+  }
+  var scripts=doc.querySelectorAll('script[type="application/ld+json"]');
+  for(var i=0;i<scripts.length;i++){try{visit(JSON.parse(scripts[i].textContent));}catch(e){}}
+  if(!out.overview){var description=doc.querySelector('.ftext.full-text,meta[name="description"]');if(description)out.overview=description.getAttribute('content')||description.textContent||'';}
+  return out;
+ }
  function catalog(pageUrl) {
-  var direct = tortuga(pageUrl, pageUrl);
+  var direct = tortuga(pageUrl, pageUrl),metadata={};
   return (direct ? Promise.resolve(direct) : get(pageUrl).then(function (html) {
-   return locate(html, pageUrl);
-  })).then(function (url) { return get(url); }).then(parse);
+   metadata=metadataFrom(html);return locate(html, pageUrl);
+  })).then(function (url) { return get(url); }).then(function(html){var data=parse(html);data.metadata=metadata;return data;});
  }
  function open(item, onBack) {
   var closed = false;
@@ -160,7 +179,7 @@
     })[0];
     var stream = current && current.voices.filter(function (v) { return v.name === voice.name; })[0];
     if (!stream) throw Error('Серія або озвучення більше не доступні');
-    var entry = {title: (item.title || item.name || 'UASerials') + ' · Сезон ' + current.season + ' · ' + current.title,
+    var entry = {title: (item.title || item.name || 'UASerials') + (serial(item,fresh) ? ' · Сезон ' + current.season + ' · ' + current.title : ''),
      url: stream.url, hls_type: 'hlsjs', subtitles: stream.subtitles};
     Lampa.Player.play(entry);
     Lampa.Player.playlist([entry]);
@@ -186,10 +205,38 @@
       function (v) { play(e, v.value); }, function () { episodeMenu(season); });
     }, seasonMenu);
    }
+   if (!serial(item, data)) {
+    var movie = data.episodes[0];
+    if (movie.voices.length === 1) return play(movie, movie.voices[0]);
+    return show('Озвучення', movie.voices.map(function (v) { return {title: v.name, value: v}; }), function (v) { play(movie, v.value); });
+   }
    seasonMenu();
   }).catch(fail);
  }
- root.UASerialsTortuga = {decode: decode, parse: parse, catalog: catalog, open: open};
+ function serial(item, data) {
+  if (item.media_type === 'movie') return false;
+  if (item.media_type === 'tv') return true;
+  return !!data.isSeries;
+ }
+ function choose(data, season, episode, voice) {
+  var entry = data.episodes.filter(function (e) {
+   return String(e.season) === String(season) && String(e.number) === String(episode);
+  })[0];
+  if (!entry) throw Error('Серія більше не доступна');
+  var track = voice ? entry.voices.filter(function (v) { return v.name === voice; })[0] : entry.voices[0];
+  if (!track) throw Error('Озвучення більше не доступне');
+  return {url: track.url, data: {subs: track.subtitles}, voice: track.name, episode: entry};
+ }
+ function resolve(item, season, episode, voice) {
+  return catalog(item.url).then(function (data) {
+   if (!serial(item, data)) {
+    season = data.episodes[0].season;
+    episode = data.episodes[0].number;
+   }
+   return choose(data, season, episode, voice);
+  });
+ }
+ root.UASerialsTortuga = {decode: decode, parse: parse, catalog: catalog, open: open, serial: serial, choose: choose, resolve: resolve};
  if (typeof module !== 'undefined' && module.exports) module.exports = root.UASerialsTortuga;
 })(typeof window !== 'undefined' ? window : globalThis);
 
@@ -197,11 +244,11 @@
 (function () {
 'use strict';
 
-if (window.UA_SEARCH_135) return;
-window.UA_SEARCH_135 = true;
+if (window.UA_SEARCH_136) return;
+window.UA_SEARCH_136 = true;
 
 var API = 'https://uakino.ax';
-var COMPONENT = 'ua_search_135';
+var COMPONENT = 'ua_search_136';
 var LIMIT = 60;
 var MAX_PAGES = 30;
 
@@ -222,7 +269,7 @@ var DEBUG = true;
 function log() {
  if(DEBUG && window.console) {
   var a = Array.prototype.slice.call(arguments);
-  a.unshift('[UA Search 1.3.5]');
+  a.unshift('[UA Search 1.3.6]');
   console.log.apply(console,a);
  }
 }
@@ -813,6 +860,7 @@ function Page(o) {
  var zone='tiles',view='catalog';
 
  var selected=null;
+ var uaCatalog=null,detailLoading=false,detailError='',externalCandidates=[];
  var stream=null;
  var qualities=[];
  var selectedQuality=null;
@@ -1343,10 +1391,72 @@ function Page(o) {
  }
  var selectedSeason=0,selectedEpisode=0,selectedVoice='';
  var episodeRows=[],episodeRowCursor=0,episodeColCursor=0;
+ function isUASerials(item) {
+  return !!(item && /^https:\/\/(?:www\.)?uaserials\.com\//i.test(item.url || ''));
+ }
+ function sourceSeries() {
+  return uaCatalog && window.UASerialsTortuga.serial(selected,uaCatalog);
+ }
+ function uaSeasons() {
+  if (!sourceSeries()) return [];
+  var groups={};
+  uaCatalog.episodes.forEach(function(e){
+   var sn=Number(e.season)||1,en=Number(e.number)||1;
+   if(!groups[sn])groups[sn]={number:sn,episodes:[]};
+   groups[sn].episodes.push({number:en,raw:{title:e.title,poster:e.poster},voices:e.voices.map(function(v){return v.name;})});
+  });
+  return Object.keys(groups).map(function(k){groups[k].episodes.sort(function(a,b){return a.number-b.number;});return groups[k];}).sort(function(a,b){return a.number-b.number;});
+ }
+ function setUaStream(){
+  if(!uaCatalog||!uaCatalog.episodes.length)return;
+  var first=uaCatalog.episodes[0];
+  if(!selectedSeason)selectedSeason=Number(first.season)||1;
+  if(!selectedEpisode)selectedEpisode=Number(first.number)||1;
+  stream=window.UASerialsTortuga.choose(uaCatalog,selectedSeason,selectedEpisode,selectedVoice);
+  selectedVoice=stream.voice;
+  stream.seasons=uaSeasons();
+ }
+ function readQualities(item,token){
+  var current=stream;
+  if(!current||!current.url)return Promise.resolve();
+  return http(current.url,false).then(function(text){
+   if(destroyed||token!==detailRequest||selected!==item||stream!==current)return;
+   qualities=parseMaster(text,current.url);renderDetails();
+  }).catch(function(){});
+ }
+ function playSelected(){
+  if(!stream||!stream.url)return note(detailError||'Завантаження відео…');
+  if(!isUASerials(selected))return playStream(selected,stream,selectedQuality);
+  if(detailLoading)return;
+  var item=selected,token=detailRequest,quality=selectedQuality;
+  detailLoading=true;detailError='';renderDetails();
+  window.UASerialsTortuga.resolve(item,selectedSeason,selectedEpisode,selectedVoice).then(function(fresh){
+   if(destroyed||token!==detailRequest||selected!==item)return;
+   if(!quality)return {fresh:fresh,quality:null};
+   return http(fresh.url,false).then(function(text){
+    var q=parseMaster(text,fresh.url).filter(function(q){return q.height===quality.height;})[0];
+    return {fresh:fresh,quality:q||null};
+   }).catch(function(){return {fresh:fresh,quality:null};});
+  }).then(function(result){
+   if(!result||destroyed||token!==detailRequest||selected!==item)return;
+   detailLoading=false;renderDetails();
+   var title=titleOf(item);
+   if(sourceSeries())title+=' · Сезон '+selectedSeason+' · Серія '+selectedEpisode;
+   playStream({title:title},result.fresh,result.quality);
+  }).catch(function(error){
+   if(destroyed||token!==detailRequest||selected!==item)return;
+   detailLoading=false;detailError=error.message;renderDetails();note(detailError);
+  });
+ }
  function loadEpisode(){
   if(!selected)return;
   var item=selected,token=++detailRequest,focusRow=episodeRowCursor,focusCol=episodeColCursor;
-  stream=null;qualities=[];selectedQuality=null;renderDetails();
+  stream=null;qualities=[];selectedQuality=null;detailLoading=false;detailError='';
+  if(isUASerials(item)){
+   try{setUaStream();renderDetails();readQualities(item,token);}catch(e){detailError=e.message;renderDetails();}
+   return;
+  }
+  renderDetails();
   resolveStream(item,selectedSeason,selectedEpisode,selectedVoice).then(function(result){
    if(destroyed||token!==detailRequest||selected!==item)return;
    if(result.data&&result.data.current&&selectedEpisode&&episodeNumber(result.data.current.episode)!==selectedEpisode){note('UAKino не підтвердив вибрану серію; перевір параметри API');}
@@ -1392,60 +1502,8 @@ function Page(o) {
    });
    detail.append(row);
   }
-  if(selected.external_source){
-   addDetailControl('▶ Знайти відеопотік',function(){
-    if (/^https:\/\/(?:www\.)?uaserials\.com\//i.test(selected.url || '')) {
-     return window.UASerialsTortuga.open(selected,function(){
-      setTimeout(function(){if(active()){Lampa.Controller.toggle('content');restoreFocus();}},100);
-     });
-    }
-    var item=selected,token=detailRequest;
-    note('Перевіряю сторінку відео…');
-    Promise.all([externalStreams(item.url),probePlayerMessages(item.url)]).then(function(results){
-     var data=results[0],probe=results[1];
-     probe.urls.forEach(function(url){if(!data.streams.some(function(x){return x.url===url;}))data.streams.push({url:url,origin:'postMessage'});});
-     if(destroyed||token!==detailRequest||selected!==item)return;
-     var rows=data.streams.map(function(x,i){return {title:'▶ '+(i+1)+'. '+x.origin+' · '+x.url.slice(0,90),value:i};});
-     if(!data.streams.length)rows.push({title:'Наступна перевірка: player-control / postMessage у index.js',value:-201});
-     if(!rows.length)rows.push({title:'Прямих відеопотоків у HTML не знайдено',value:-1});
-     rows.push({title:'Діагностика: '+data.iframes.length+' iframe · '+(data.checked||0)+' перевірено · '+data.streams.length+' потоків',value:-2});
-     (data.errors||[]).slice(0,3).forEach(function(err,i){rows.push({title:'HTTP помилка '+(i+1)+': '+err,value:-300-i});});
-     // Compact, actionable diagnostics only; no JS snippets or encrypted payload lengths.
-     var findings=(data.jsFindings||[]);
-     var signals=['getInfo запит','формування запиту','встановлення URL','передача повідомлень','отримання відповіді'];
-     signals.forEach(function(signal){
-      var matches=findings.filter(function(line){return line.indexOf(signal)>=0;});
-      if(matches.length)rows.push({title:'✓ '+signal+' · '+matches.length+' збіг(ів)',value:-1200-signals.indexOf(signal)});
-     });
-     var urls=findings.filter(function(line){return line.indexOf('Відео URL у JS:')===0;});
-     urls.slice(0,3).forEach(function(line,i){rows.push({title:line,value:-1400-i});});
-     if((data.controlInfo||[]).some(function(line){return line.indexOf('data-tag1 JSON:')>=0;}))
-      rows.push({title:'Зашифровані параметри плеєра: знайдено',value:-1500});
-     if(!data.streams.length)
-      rows.push({title:'postMessage: '+probe.status,value:-1501});
-     (data.jsErrors||[]).slice(0,2).forEach(function(line,i){rows.push({title:'JS HTTP: '+line,value:-1300-i});});
-     Lampa.Select.show({
-      title:'Відео · '+item.external_source,
-      items:rows,
-      onSelect:function(row){
-       if(row.value<0){try{Lampa.Select.hide();}catch(e){}setTimeout(function(){if(active()){Lampa.Controller.toggle('content');restoreFocus();}},100);return;}
-       var candidate=data.streams[row.value];
-       if(!candidate)return;
-       try{Lampa.Select.hide();}catch(e){}
-       try{Lampa.Player.play({title:titleOf(item),url:candidate.url,hls_type:/\.m3u8(?:[?#]|$)/i.test(candidate.url)?'hlsjs':undefined});}
-       catch(e){note('Плеєр: '+e.message);}
-      },
-      onBack:function(){setTimeout(function(){if(active()){Lampa.Controller.toggle('content');restoreFocus();}},100);}
-     });
-    }).catch(function(e){note('Не вдалося отримати відео: '+e.message);});
-   });
-   addDetailControl('Сторінка: '+selected.url.slice(0,65),function(){note('Сторінка джерела: '+selected.external_source);});
-   addDetailControl('← До каталогу',closeDetails);
-   detail.append($('<div class="uas133-stream-status"></div>').text('Діагностика: HTML та iframe/postMessage.'));
-   if(started&&active())setTimeout(restoreFocus,70);
-   return;
-  }
-  var seasons=stream&&stream.seasons&&stream.seasons.length?stream.seasons:seasonList(selected);
+  var seasons=isUASerials(selected)?uaSeasons():(stream&&stream.seasons&&stream.seasons.length?stream.seasons:seasonList(selected));
+  if(selected.media_type==='movie'||(!selected.external_source&&category==='films'))seasons=[];
   var bySeason={};
   seasons.forEach(function(se){bySeason[se.number]=se;});
   if(seasons.length){
@@ -1489,26 +1547,18 @@ function Page(o) {
     detail.append(track);
    });
   }
-  if(!seasons.length){
-   addDetailControl('Сезони / серії: перевірити дані UAKino',function(){
-    var data=stream&&stream.data||{},rows=[];
-    function show(prefix,obj){
-     if(!obj||typeof obj!=='object')return;
-     Object.keys(obj).slice(0,25).forEach(function(k){
-      var v=obj[k];
-      rows.push({title:prefix+k+' — '+(Array.isArray(v)?'масив ('+v.length+')':typeof v==='object'?'об’єкт':String(v).slice(0,60)),value:rows.length});
-     });
-    }
-    show('episodes[0].',data.episodes&&data.episodes[0]);
-    show('current.',data.current);
-    rows.push({title:'uakino_last_s — '+String(selected.uakino_last_s||'невідомо'),value:-1});
-    Lampa.Select.show({title:'UAKino · структура серіалу',items:rows,onSelect:function(){try{Lampa.Select.hide();}catch(e){}setTimeout(function(){if(active()){Lampa.Controller.toggle('content');restoreFocus();}},100);},onBack:function(){setTimeout(function(){if(active()){Lampa.Controller.toggle('content');restoreFocus();}},100);}});
+  if(isUASerials(selected)&&uaCatalog){
+   var entry=uaCatalog.episodes.filter(function(e){return Number(e.season)===selectedSeason&&Number(e.number)===selectedEpisode;})[0];
+   if(entry&&entry.voices.length>1)addDetailControl('Озвучення: '+selectedVoice,function(){
+    selectOptions('Озвучення',entry.voices.map(function(v){return {title:v.name,value:v.name};}),function(voice){selectedVoice=voice;loadEpisode();});
    });
   }
-  addDetailControl('▶ Дивитися',function(){
-   if(stream&&stream.url)playStream(selected,stream,selectedQuality);
-   else note('Завантаження відео…');
+  if(externalCandidates.length>1)addDetailControl('Джерело відео',function(){
+   selectOptions('Джерело відео',externalCandidates.map(function(candidate,index){return {title:'Варіант '+(index+1),value:index};}),function(index){
+    stream={url:externalCandidates[index].url,data:{},seasons:[]};qualities=[];selectedQuality=null;renderDetails();readQualities(selected,++detailRequest);
+   });
   });
+  addDetailControl(detailLoading&&stream?'Оновлення відео…':'▶ Дивитися',playSelected);
   addDetailControl('Якість: '+(selectedQuality?selectedQuality.name:'Auto'),function(){
    if(!stream)return note('Завантаження відео…');
    selectOptions('Якість відео',[{title:'Auto (адаптивна)',value:-1}].concat(qualities.map(function(q,i){return {title:q.name,value:i};})),function(i){
@@ -1518,15 +1568,39 @@ function Page(o) {
    });
   });
   addDetailControl('← До каталогу',closeDetails);
-  detail.append($('<div class="uas133-stream-status"></div>').text(stream?'Доступних варіантів: '+qualities.length:'Завантаження потоку…'));
+  detail.append($('<div class="uas133-stream-status"></div>').text(detailError?'Помилка: '+detailError:detailLoading?'Завантаження відео…':stream?'Доступних варіантів: '+qualities.length:'Завантаження потоку…'));
   if(started&&active())setTimeout(restoreFocus,70);
  }
  function openDetails(it){
+  uaCatalog=null;detailLoading=false;detailError='';externalCandidates=[];
   selected=it;stream=null;qualities=[];selectedQuality=null;selectedSeason=0;selectedEpisode=0;selectedVoice='';episodeRowCursor=0;episodeColCursor=0;detailCursor=0;
   view='detail';zone='detail';filterBar.hide();statusBar.hide();body.hide();detail.show();
   renderDetails();
   var token=++detailRequest;
-  if(it.external_source)return;
+  if(isUASerials(it)){
+   detailLoading=true;renderDetails();
+   window.UASerialsTortuga.catalog(it.url).then(function(data){
+    if(destroyed||token!==detailRequest||view!=='detail'||selected!==it)return;
+    uaCatalog=data;var metadata=data.metadata||{};['overview','year','rating','cast'].forEach(function(key){if(metadata[key]&&(key!=='cast'||metadata[key].length))it[key]=metadata[key];});detailLoading=false;setUaStream();renderDetails();return readQualities(it,token);
+   }).catch(function(error){
+    if(destroyed||token!==detailRequest||view!=='detail'||selected!==it)return;
+    detailLoading=false;detailError=error.message;renderDetails();
+   });
+   return;
+  }
+  if(it.external_source){
+   detailLoading=true;renderDetails();
+   externalStreams(it.url).then(function(data){
+    if(destroyed||token!==detailRequest||view!=='detail'||selected!==it)return;
+    detailLoading=false;
+    if(!data.streams.length){detailError='Відео цього джерела поки недоступне';renderDetails();return;}
+    externalCandidates=data.streams;stream={url:data.streams[0].url,data:{},seasons:[]};renderDetails();return readQualities(it,token);
+   }).catch(function(error){
+    if(destroyed||token!==detailRequest||view!=='detail'||selected!==it)return;
+    detailLoading=false;detailError=error.message;renderDetails();
+   });
+   return;
+  }
   resolveStream(it).then(function(s){
    if(destroyed||token!==detailRequest||view!=='detail')return;
    stream=s;renderDetails();
@@ -1645,7 +1719,7 @@ function externalList(cat,page){
       poster=absolute(poster,pageUrl);
       if(!/^https?:\/\//i.test(poster))continue;
       seen[url]=true;
-      items.push({title:title,poster:poster,url:url,id:url,external_source:src.name});
+      items.push({title:title,poster:poster,url:url,id:url,external_source:src.name,media_type:cat==='ext_uaserials'?'movie':cat==='ext_uaserials_series'?'tv':''});
       if(items.length>=80)break;
      }
      finish(null,items);
@@ -1935,7 +2009,7 @@ function menu(){
   {title:'▸ UAKino',value:'group_uakino'},
   {title:'▸ Інші джерела',value:'group_sources'}
  ];
- openMenuGroup('UA Search 1.3.5',groups,false);
+ openMenuGroup('UA Search 1.3.6',groups,false);
 }
 function openMenuGroup(title,choices,sub){
  Lampa.Select.show({
@@ -2000,7 +2074,7 @@ function init(){
  var css='.uas133-page{height:100%}.uas133-filters{display:flex;flex-wrap:wrap;gap:.7em;padding:1.2em 3em .4em}.uas133-filter{padding:.65em 1em;border-radius:.5em;background:#303642;color:#fff}.uas133-filter.focus{background:#fff;color:#111}.uas133-status{padding:.4em 3em;font-size:.9em;opacity:.7}.uas133-body{padding:1em 3em 4em}.uas133-grid{display:grid;grid-template-columns:repeat(5,minmax(0,1fr));gap:1.2em}.uas133-card{min-width:0;padding:.4em;border-radius:.6em}.uas133-card.focus{background:#fff;color:#111}.uas133-poster{aspect-ratio:2/3;background:#252a35 center/cover no-repeat;border-radius:.35em}.uas133-name{font-size:1.1em;font-weight:600;margin-top:.5em;overflow:hidden;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical}.uas133-meta{font-size:.9em;opacity:.7;margin-top:.3em}.uas133-empty{padding:2em;opacity:.7}.uas133-search{padding:.7em 1em;margin:.5em;border-radius:.5em;background:#1f6feb;color:#fff}.uas133-detail{padding:1.5em 3em 5em}.uas133-detail-head{display:flex;gap:2em;margin-bottom:1.5em}.uas133-detail-poster{width:13em;min-width:13em;aspect-ratio:2/3;background:#252a35 center/cover no-repeat;border-radius:.5em}.uas133-detail-info{flex:1;min-width:0}.uas133-detail-title{font-size:2em;font-weight:700;margin-bottom:.4em}.uas133-description{font-size:1.05em;line-height:1.5;max-width:55em;margin-top:1em}.uas133-reactions{font-size:1.2em;margin:1em 0}.uas133-heading{font-size:1.4em;font-weight:700;margin:1em 0 .6em}.uas133-cast{display:flex;gap:1em;overflow-x:auto;margin-bottom:1.5em}.uas133-actor{width:8em;min-width:8em}.uas133-actor-photo{width:100%;aspect-ratio:2/3;background:#252a35 center/cover no-repeat;border-radius:.4em}.uas133-action{display:block;padding:.9em 1.2em;margin:.5em 0;background:#303642;border-radius:.5em;max-width:32em}.uas133-action.focus{background:#fff;color:#111}.uas133-stream-status{opacity:.7;font-size:.9em;margin-top:1em}.uas133-detail-summary{border-radius:.6em;padding:.6em;margin:-.6em -.6em 1.5em}.uas133-detail-summary.focus{outline:2px solid rgba(255,255,255,.8);background:rgba(255,255,255,.06)}.uas133-episode-track{display:flex;gap:1em;overflow-x:auto;padding:.4em .2em 1em;margin-bottom:1.3em}.uas133-episode{width:13em;min-width:13em;padding:.4em;border-radius:.6em;background:#252b36}.uas133-episode.focus{background:#fff;color:#111}.uas133-episode-active{outline:2px solid #24b8df}.uas133-episode-image{width:100%;aspect-ratio:16/9;background:#202733 center/cover no-repeat;border-radius:.35em;display:flex;align-items:center;justify-content:center}.uas133-episode-placeholder{font-size:2em;opacity:.5}.uas133-episode-name{font-size:1em;font-weight:600;margin-top:.6em;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}body.true--mobile .uas133-grid{grid-template-columns:repeat(3,minmax(0,1fr))}';
  $('<style id="uas133-style"></style>').text(css).appendTo('head');
  var ready=false;
- function start(){if(ready)return;ready=true;addMenu();setInterval(function(){try{addMenu();addSearch();}catch(e){log(e.message);}},2000);note('UA Search 1.3.5 активовано');}
+ function start(){if(ready)return;ready=true;addMenu();setInterval(function(){try{addMenu();addSearch();}catch(e){log(e.message);}},2000);note('UA Search 1.3.6 активовано');}
  if(window.appready)start();
  else Lampa.Listener.follow('app',function(e){if(e.type==='ready')start();});
 }
