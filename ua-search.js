@@ -382,11 +382,11 @@
 (function () {
 'use strict';
 
-if (window.UA_SEARCH_1311) return;
-window.UA_SEARCH_1311 = true;
+if (window.UA_SEARCH_1312) return;
+window.UA_SEARCH_1312 = true;
 
 var API = 'https://uakino.ax';
-var COMPONENT = 'ua_search_1311';
+var COMPONENT = 'ua_search_1312';
 var LIMIT = 60;
 var MAX_PAGES = 30;
 
@@ -407,7 +407,7 @@ var DEBUG = true;
 function log() {
  if(DEBUG && window.console) {
   var a = Array.prototype.slice.call(arguments);
-  a.unshift('[UA Search 1.3.11]');
+  a.unshift('[UA Search 1.3.12]');
   console.log.apply(console,a);
  }
 }
@@ -1751,13 +1751,19 @@ function Page(o) {
   }
   addDetailControl('← До каталогу',closeDetails);
   detail.append($('<div class="uas133-stream-status"></div>').text(detailError?'Помилка: '+detailError:stream&&stream.blocked?stream.blocked:detailLoading?'Завантаження відео…':stream?'Доступних варіантів: '+qualities.length:'Завантаження потоку…'));
+  try{scroll.minus(false);Lampa.Layer.update();}catch(e){}
   if(started&&active())setTimeout(function(){if(!detailModalOpen&&controllerName()==='content')restoreFocus();},70);
  }
  function openDetails(it){
   detailModalOpen=false;uaCatalog=null;detailLoading=false;detailError='';externalCandidates=[];
   selected=it;stream=null;qualities=[];selectedQuality=null;selectedSeason=0;selectedEpisode=0;selectedVoice='';episodeRowCursor=0;episodeColCursor=0;detailCursor=0;
   view='detail';zone='detail';filterBar.hide();statusBar.hide();body.hide();detail.show();
+  try{scroll.reset();}catch(e){}
   renderDetails();
+  try{
+   scroll.minus(false);Lampa.Layer.update();
+   if(detailControls[0]&&scroll.immediate)scroll.immediate($(detailControls[0]),false);
+  }catch(e){}
   var token=++detailRequest;
   if(isUASerials(it)){
    detailLoading=true;renderDetails();
@@ -2213,9 +2219,9 @@ function externalStreams(pageUrl){
 }
 
 function menu(){
- openMenuGroup('UA Search 1.3.11',[
-  {title:'Ua kino',value:'group_uakino'},
-  {title:'Ua serials',value:'group_uaserials'},
+ openMenuGroup('UA Search 1.3.12',[
+  {title:'UA Films',value:'group_uakino'},
+  {title:'UA Serials',value:'group_uaserials'},
   {title:'Цікава ідея',value:'ext_cikava'},
   {title:'UAFLIX',value:'ext_uafix'}
  ],false);
@@ -2224,8 +2230,8 @@ function openMenuGroup(title,choices,sub){
  Lampa.Select.show({title:title,items:choices,onBack:function(){setTimeout(sub?menu:focusMenu,80);},onSelect:function(item){
   try{Lampa.Select.hide();}catch(e){}
   var value=item.value;
-  if(value==='group_uakino')return setTimeout(function(){openMenuGroup('Ua kino',[{title:'⌕ Пошук',value:'search'}].concat(CATS.map(function(c){return {title:c[1],value:c[0]};})),true);},100);
-  if(value==='group_uaserials')return setTimeout(function(){openMenuGroup('Ua serials',[{title:'Фільми',value:'ext_uaserials'},{title:'Серіали',value:'ext_uaserials_series'}],true);},100);
+  if(value==='group_uakino')return setTimeout(function(){openMenuGroup('UA Films',[{title:'⌕ Пошук',value:'search'}].concat(CATS.map(function(c){return {title:c[1],value:c[0]};})),true);},100);
+  if(value==='group_uaserials')return setTimeout(function(){openMenuGroup('UA Serials',[{title:'Фільми',value:'ext_uaserials'},{title:'Серіали',value:'ext_uaserials_series'}],true);},100);
   if(value==='search')return setTimeout(search,180);
   if(value.indexOf('ext_')===0){var source=EXTERNAL_SOURCES[value.slice(4)];if(source)show('',value,source.name);return;}
   var cat=CATS.filter(function(c){return c[0]===value;})[0];if(cat)show('',value,cat[1]);
@@ -2253,7 +2259,7 @@ function init(){
  var css='.uas133-page{height:100%}.uas133-filters{display:flex;flex-wrap:wrap;gap:.7em;padding:1.2em 3em .4em}.uas133-filter{padding:.65em 1em;border-radius:.5em;background:#303642;color:#fff}.uas133-filter.focus{background:#fff;color:#111}.uas133-status{padding:.4em 3em;font-size:.9em;opacity:.7}.uas133-body{padding:1em 3em 4em}.uas133-grid{display:grid;grid-template-columns:repeat(5,minmax(0,1fr));gap:1.2em}.uas133-card{min-width:0;padding:.4em;border-radius:.6em}.uas133-card.focus{background:#fff;color:#111}.uas133-poster{aspect-ratio:2/3;background:#252a35 center/cover no-repeat;border-radius:.35em}.uas133-name{font-size:1.1em;font-weight:600;margin-top:.5em;overflow:hidden;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical}.uas133-meta{font-size:.9em;opacity:.7;margin-top:.3em}.uas133-empty{padding:2em;opacity:.7}.uas133-search{padding:.7em 1em;margin:.5em;border-radius:.5em;background:#1f6feb;color:#fff}.uas133-detail{padding:1.5em 3em 5em}.uas133-detail-head{display:flex;gap:2em;margin-bottom:1.5em}.uas133-detail-poster{width:13em;min-width:13em;aspect-ratio:2/3;background:#252a35 center/cover no-repeat;border-radius:.5em}.uas133-detail-info{flex:1;min-width:0}.uas133-detail-title{font-size:2em;font-weight:700;margin-bottom:.4em}.uas133-description{font-size:1.05em;line-height:1.5;max-width:55em;margin-top:1em}.uas133-reactions{font-size:1.2em;margin:1em 0}.uas133-heading{font-size:1.4em;font-weight:700;margin:1em 0 .6em}.uas133-cast{display:flex;gap:1em;overflow-x:auto;margin-bottom:1.5em}.uas133-actor{width:8em;min-width:8em}.uas133-actor-photo{width:100%;aspect-ratio:2/3;background:#252a35 center/cover no-repeat;border-radius:.4em}.uas133-action{display:block;padding:.9em 1.2em;margin:.5em 0;background:#303642;border-radius:.5em;max-width:32em}.uas133-action.focus{background:#fff;color:#111}.uas133-stream-status{opacity:.7;font-size:.9em;margin-top:1em}.uas133-detail-summary{border-radius:.6em;padding:.6em;margin:-.6em -.6em 1.5em}.uas133-detail-summary.focus{outline:2px solid rgba(255,255,255,.8);background:rgba(255,255,255,.06)}.uas133-episode-track{display:flex;gap:1em;overflow-x:auto;padding:.4em .2em 1em;margin-bottom:1.3em}.uas133-episode{width:13em;min-width:13em;padding:.4em;border-radius:.6em;background:#252b36}.uas133-episode.focus{background:#fff;color:#111}.uas133-episode-active{outline:2px solid #24b8df}.uas133-episode-image{width:100%;aspect-ratio:16/9;background:#202733 center/cover no-repeat;border-radius:.35em;display:flex;align-items:center;justify-content:center}.uas133-episode-placeholder{font-size:2em;opacity:.5}.uas133-episode-name{font-size:1em;font-weight:600;margin-top:.6em;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}body.true--mobile .uas133-grid{grid-template-columns:repeat(3,minmax(0,1fr))}';
  $('<style id="uas133-style"></style>').text(css).appendTo('head');
  var ready=false;
- function start(){if(ready)return;ready=true;addMenu();setInterval(function(){try{addMenu();addSearch();}catch(e){log(e.message);}},2000);note('UA Search 1.3.11 активовано');}
+ function start(){if(ready)return;ready=true;addMenu();setInterval(function(){try{addMenu();addSearch();}catch(e){log(e.message);}},2000);note('UA Search 1.3.12 активовано');}
  if(window.appready)start();
  else Lampa.Listener.follow('app',function(e){if(e.type==='ready')start();});
 }
