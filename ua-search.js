@@ -1927,6 +1927,7 @@ function externalList(cat,page){
       if(url.indexOf(new URL(src.url).origin+'/')!==0||seen[url]||/\/season-\d+-episode-\d+\//.test(url))continue;
       if(/\/(?:page|category|genre|year|search|login|register|contact|about|privacy|tag)(?:\/|$)/i.test(url))continue;
       var title=(a.getAttribute('title')||img.getAttribute('alt')||a.textContent||'').replace(/\s+/g,' ').trim();
+      if(cat==='ext_uafix')title=title.replace(/^(?:смотреть|дивитися|смотреть онлайн)\s*[:\-–—]?\s*/i,'').trim();
       if(title.length<3||title.length>130)continue;
       var poster=img.getAttribute('data-src')||img.getAttribute('data-original')||img.getAttribute('data-lazy-src')||img.getAttribute('src')||'';
       if(!poster||poster.indexOf('data:')===0)continue;
