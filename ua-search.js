@@ -2220,7 +2220,7 @@ function externalStreams(pageUrl){
 
 function menu(){
  openMenuGroup('UA Search 1.3.12',[
-  {title:'UA Films',value:'group_uakino'},
+  {title:'UA Kino',value:'group_uakino'},
   {title:'UA Serials',value:'group_uaserials'},
   {title:'Цікава ідея',value:'ext_cikava'},
   {title:'UAFLIX',value:'ext_uafix'}
@@ -2230,7 +2230,7 @@ function openMenuGroup(title,choices,sub){
  Lampa.Select.show({title:title,items:choices,onBack:function(){setTimeout(sub?menu:focusMenu,80);},onSelect:function(item){
   try{Lampa.Select.hide();}catch(e){}
   var value=item.value;
-  if(value==='group_uakino')return setTimeout(function(){openMenuGroup('UA Films',[{title:'⌕ Пошук',value:'search'}].concat(CATS.map(function(c){return {title:c[1],value:c[0]};})),true);},100);
+  if(value==='group_uakino')return setTimeout(function(){openMenuGroup('UA Kino',[{title:'⌕ Пошук',value:'search'}].concat(CATS.map(function(c){return {title:c[1],value:c[0]};})),true);},100);
   if(value==='group_uaserials')return setTimeout(function(){openMenuGroup('UA Serials',[{title:'Фільми',value:'ext_uaserials'},{title:'Серіали',value:'ext_uaserials_series'}],true);},100);
   if(value==='search')return setTimeout(search,180);
   if(value.indexOf('ext_')===0){var source=EXTERNAL_SOURCES[value.slice(4)];if(source)show('',value,source.name);return;}
